@@ -15,7 +15,7 @@ from sensor_msgs.msg import JointState
 # 10 个自由度定义 (0-255 范围)
 # 对应 L10_JOINT_MAP: {0:9, 1:1, 2:0, 3:0, 4:0, 5:6, 6:2, 7:2, 8:2, 9:3, 10:3, 11:3, 12:7, 13:4, 14:4, 15:4, 16:8, 17:5, 18:5, 19:5}
 DOF_DEFINITIONS = [
-    {"idx": 0, "label": "DOF0 - 拇指根部旋转", "default": 255},
+    {"idx": 0, "label": "DOF0 - 拇指弯曲", "default": 255},
     {"idx": 1, "label": "DOF1 - 拇指侧摆", "default": 255},
     {"idx": 2, "label": "DOF2 - 食指侧摆+弯曲", "default": 255},
     {"idx": 3, "label": "DOF3 - 中指弯曲", "default": 255},
@@ -24,7 +24,7 @@ DOF_DEFINITIONS = [
     {"idx": 6, "label": "DOF6 - 食指根部", "default": 255},
     {"idx": 7, "label": "DOF7 - 无名指根部", "default": 255},
     {"idx": 8, "label": "DOF8 - 小指根部", "default": 255},
-    {"idx": 9, "label": "DOF9 - 拇指弯曲", "default": 255},
+    {"idx": 9, "label": "DOF9 - 拇指侧摆", "default": 255},
 ]
 
 

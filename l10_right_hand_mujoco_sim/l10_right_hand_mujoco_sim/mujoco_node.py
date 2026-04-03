@@ -31,7 +31,7 @@ L10_JOINT_MAP = {
 # L10 右手关节范围
 L10_R_MIN = [0, 0, 0, 0, 0, 0, -0.26, 0, 0, -0.52]
 L10_R_MAX = [0.75, 1.43, 1.62, 1.62, 1.62, 1.62, 0, 0.13, 0.26, 1.01]
-L10_R_DERICT = [-1, -1, -1, -1, -1, -1, -1, 0, 0, -1]
+L10_R_DIRECT = [-1, -1, -1, -1, -1, -1, -1, 0, 0, -1]
 
 
 def scale_value(original_value, a_min, a_max, b_min, b_max):
@@ -49,7 +49,7 @@ def range_to_arc_l10_right(position_range):
     hand_arc = [0.0] * 10
     for i in range(10):
         val = is_within_range(position_range[i], 0, 255)
-        if L10_R_DERICT[i] == -1:
+        if L10_R_DIRECT[i] == -1:
             hand_arc[i] = scale_value(val, 0, 255, L10_R_MAX[i], L10_R_MIN[i])
         else:
             hand_arc[i] = scale_value(val, 0, 255, L10_R_MIN[i], L10_R_MAX[i])
