@@ -6,6 +6,7 @@ L10 手部 URDF 模型交互控件
 
 import math
 import os
+import itertools
 import numpy as np
 
 from PySide2.QtCore import Qt, QTimer, QPointF
@@ -424,8 +425,30 @@ class HandModelWidget(QWidget):
         arc[dof] = (a + b) / 2
 
     def _ik_solve_ndof(self, arc, dofs, n, geom_id, target_screen):
-        """Multi-DOF: 迭代 Jacobian 求解 (用于拇指)"""
-        max_iter = 15
+        """Multi-DOF: 网格采样找全局最优起点 + Jacobian 精化"""
+        # Phase 1: 网格采样 — 保证找到正确的收敛域
+        spa = int(80 ** (1.0 / n))  # 2-DOF: 8(64点), 3-DOF: 4(64点)
+        ranges = [np.linspace(L10_R_MIN[dof], L10_R_MAX[dof], spa) for dof in dofs]
+        best_dist = float('inf')
+        best_combo = tuple(arc[dof] for dof in dofs)
+
+        for combo in itertools.product(*ranges):
+            for col, dof in enumerate(dofs):
+                arc[dof] = combo[col]
+            self._sync_mujoco_custom(arc)
+            scr = self._project(self._data.geom_xpos[geom_id])
+            if scr is None:
+                continue
+            d = self._screen_dist_sq(scr, target_screen)
+            if d < best_dist:
+                best_dist = d
+                best_combo = combo
+
+        for col, dof in enumerate(dofs):
+            arc[dof] = best_combo[col]
+
+        # Phase 2: 从全局最优起点 Jacobian 精化
+        max_iter = 10
         for _ in range(max_iter):
             self._sync_mujoco_custom(arc)
             base_screen = self._project(self._data.geom_xpos[geom_id])
@@ -437,7 +460,6 @@ class HandModelWidget(QWidget):
             if err_x * err_x + err_y * err_y < 1.0:
                 break
 
-            # 构建雅可比 (2 x n)
             J = np.zeros((2, n))
             eps = 0.01
             for col, dof in enumerate(dofs):
