@@ -1,16 +1,21 @@
 #!/usr/bin/env python3
 """
 L10 手部控制面板 - PySide2 双指示器滑块
-灰色指示器: 当前位姿状态 (订阅 /cb_right_hand_state, 只读)
-白色指示器: 目标位姿 (用户拖动, 发布到 /cb_right_hand_control_cmd)
+作为 l10_hand_gateway 的前端面板
+
+灰色指示器: 当前位姿状态 (订阅 /l10_gateway/current/dof, 只读)
+白色指示器: 目标位姿 (用户拖动, 发布到 /l10_gateway/cmd/dof)
+同时订阅 /l10_gateway/target/dof 用于外部命令驱动的目标更新 (不重发布)
 """
 
 import sys
 import threading
+import math
 
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
+from std_msgs.msg import Float32MultiArray
 
 from PySide2.QtCore import Qt, Signal, QRectF, QPointF
 from PySide2.QtGui import QPainter, QPen, QBrush, QColor, QPolygonF, QFont
@@ -175,36 +180,65 @@ class LegendIndicator(QWidget):
 
 
 class ControlPanelNode(Node):
+    """ROS2 节点 — 通过 l10_hand_gateway 通信"""
+
     def __init__(self):
         super().__init__('l10_control_panel')
 
-        self.publisher = self.create_publisher(
-            JointState, '/cb_right_hand_control_cmd', 10
+        # 发布器: 命令 → 网关
+        self.dof_pub = self.create_publisher(
+            JointState, '/l10_gateway/cmd/dof', 10
         )
-        self.state_sub = self.create_subscription(
-            JointState, '/cb_right_hand_state', self.state_callback, 10
+        self.camera_pub = self.create_publisher(
+            Float32MultiArray, '/l10_gateway/cmd/camera', 10
         )
-        # 外部设置
-        self.on_state = None
-        self.get_logger().info("L10 Control Panel Node initialized")
 
-    def publish_command(self, positions):
+        # 订阅: 网关广播的当前/目标状态
+        self.create_subscription(
+            JointState, '/l10_gateway/current/dof', self._current_cb, 10
+        )
+        self.create_subscription(
+            JointState, '/l10_gateway/target/dof', self._target_cb, 10
+        )
+
+        # 外部回调 (由 ControlPanelWindow 设置)
+        self.on_current_state = None
+        self.on_target_state = None
+
+        self.get_logger().info("L10 Control Panel Node initialized (gateway mode)")
+
+    def publish_dof(self, positions):
+        """发布 DOF 命令到网关"""
         msg = JointState()
         msg.header.stamp = self.get_clock().now().to_msg()
         msg.position = [float(p) for p in positions]
-        self.publisher.publish(msg)
+        self.dof_pub.publish(msg)
 
-    def state_callback(self, msg):
+    def publish_camera(self, camera_data):
+        """发布相机状态到网关"""
+        msg = Float32MultiArray()
+        msg.data = [float(v) for v in camera_data]
+        self.camera_pub.publish(msg)
+
+    def _current_cb(self, msg):
         if len(msg.position) < 10:
             return
         values = [float(p) for p in msg.position[:10]]
-        if self.on_state:
-            self.on_state(values)
+        if self.on_current_state:
+            self.on_current_state(values)
+
+    def _target_cb(self, msg):
+        if len(msg.position) < 10:
+            return
+        values = [float(p) for p in msg.position[:10]]
+        if self.on_target_state:
+            self.on_target_state(values)
 
 
 class _StateSignal(QWidget):
     """用于跨线程传递状态更新的信号中转"""
-    state_received = Signal(list)
+    current_received = Signal(list)
+    target_received = Signal(list)
 
     def __init__(self):
         super().__init__()
@@ -216,7 +250,8 @@ class ControlPanelWindow(QWidget):
     def __init__(self):
         super().__init__()
         self._state_signal = _StateSignal()
-        self._state_signal.state_received.connect(self._apply_state)
+        self._state_signal.current_received.connect(self._apply_current_state)
+        self._state_signal.target_received.connect(self._apply_target_state)
         self.setWindowTitle("L10 Hand Control Panel")
         self.setStyleSheet(f"""
             QWidget {{ background: {COLOR_BG}; color: {COLOR_TEXT}; }}
@@ -344,6 +379,7 @@ class ControlPanelWindow(QWidget):
         self.skeleton = HandModelWidget()
         self.skeleton.set_dof_values([d["default"] for d in DOF_DEFINITIONS])
         self.skeleton.on_dof_changed = self._on_skeleton_drag
+        self.skeleton.on_camera_changed = self._on_camera_changed
         self.skeleton.setMinimumWidth(350)
         outer.addWidget(self.skeleton, stretch=1)
 
@@ -356,18 +392,39 @@ class ControlPanelWindow(QWidget):
 
     def set_ros_node(self, node):
         self.ros_node = node
-        node.on_state = self._ros_state_update
+        node.on_current_state = self._ros_current_update
+        node.on_target_state = self._ros_target_update
 
-    def _ros_state_update(self, values):
-        # 从 ROS spin 线程调用, 通过信号传递到 Qt 主线程
-        self._state_signal.state_received.emit(values)
+    def _ros_current_update(self, values):
+        """从 ROS spin 线程调用, 通过信号传递到 Qt 主线程"""
+        self._state_signal.current_received.emit(values)
 
-    def _apply_state(self, values):
+    def _ros_target_update(self, values):
+        """从 ROS spin 线程调用, 通过信号传递到 Qt 主线程"""
+        self._state_signal.target_received.emit(values)
+
+    def _apply_current_state(self, values):
+        """更新灰色指示器 — 当前位姿, 不发布"""
         for i, v in enumerate(values):
             if i < len(self.sliders):
                 self.sliders[i].set_current(v)
 
+    def _apply_target_state(self, values):
+        """更新白色指示器 + 骨架 — 外部命令更新, 不发布"""
+        if self._syncing:
+            return
+        self._syncing = True
+        try:
+            for i, v in enumerate(values):
+                if i < len(self.sliders):
+                    self.sliders[i].set_target(v)
+                    self.val_labels[i].setText(str(int(round(v))))
+            self.skeleton.set_dof_values([int(round(v)) for v in values])
+        finally:
+            self._syncing = False
+
     def _on_slider(self):
+        """用户拖动滑块 → 发布到网关"""
         if self._syncing:
             return
         self._syncing = True
@@ -383,10 +440,10 @@ class ControlPanelWindow(QWidget):
     def publish_current(self):
         if self.ros_node:
             positions = [ds.get_target_int() for ds in self.sliders]
-            self.ros_node.publish_command(positions)
+            self.ros_node.publish_dof(positions)
 
     def _on_skeleton_drag(self, new_values):
-        """骨架拖拽回调 — 同步更新滑块"""
+        """骨架拖拽回调 — 同步更新滑块 + 发布到网关"""
         if self._syncing:
             return
         self._syncing = True
@@ -398,16 +455,23 @@ class ControlPanelWindow(QWidget):
         finally:
             self._syncing = False
 
+    def _on_camera_changed(self, camera_data):
+        """相机变化回调 — 发布到网关"""
+        if self.ros_node:
+            self.ros_node.publish_camera(camera_data)
+
     def _set_all(self, values):
+        """用户操作 (按钮/预设) → 设置所有滑块 + 发布"""
         self._syncing = True
         try:
             for i, v in enumerate(values):
                 self.sliders[i].set_target(v)
                 self.val_labels[i].setText(str(int(round(v))))
             self.skeleton.set_dof_values(values)
-            self.publish_current()
         finally:
             self._syncing = False
+        # 在 _syncing 外发布，避免回调阻塞
+        self.publish_current()
 
     def open_hand(self):
         self._set_all([255] * 10)

@@ -18,11 +18,7 @@ setup(
     version='0.0.1',
     packages=find_packages(exclude=['build', 'install', 'log']),
     package_data={
-        package_name: [
-            'urdf/linker_hand_l10_right/*.STL',
-            'urdf/linker_hand_l10_right/*.xml',
-            'urdf/linker_hand_l10_right/*.urdf',
-        ],
+        package_name: [],
     },
     data_files=[
         ('share/ament_index/resource_index/packages',

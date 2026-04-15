@@ -22,6 +22,7 @@ from hand_forward_kinematics.kinematics import (
     L10_R_MIN,
     L10_R_MAX,
 )
+from linker_hand_description import get_urdf_path
 
 # ============================================================================
 # 控制点定义: 名称 → MuJoCo body ID + 控制的 DOF
@@ -43,14 +44,13 @@ class HandModelWidget(QWidget):
         super().__init__(parent)
         self.dof_values = [255] * 10
         self.on_dof_changed = None
+        self.on_camera_changed = None
         self._suppress_sync = False
         self._dirty = True
+        self._camera_echo_guard = None  # 防回声: 最近发布的相机状态
 
         # ---- MuJoCo 模型 ----
-        xml_path = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)),
-            "urdf/linker_hand_l10_right/linker_hand_l10_right.xml"
-        )
+        xml_path = get_urdf_path()
         self._model = mujoco.MjModel.from_xml_path(xml_path)
         self._model.dof_damping[:] = 0.8
         self._data = mujoco.MjData(self._model)
@@ -311,8 +311,55 @@ class HandModelWidget(QWidget):
         factor = 0.9 if delta > 0 else 1.1
         self._cam.distance = max(0.1, min(1.0, self._cam.distance * factor))
         self._dirty = True
+        self._emit_camera_state()
 
     # ==== 摄像机 ====
+
+    def _compute_camera_normal(self):
+        """计算当前相机的投影面法向量 (forward direction)"""
+        azim = math.radians(self._cam.azimuth)
+        elev = math.radians(self._cam.elevation)
+        ce = math.cos(elev)
+        se = math.sin(elev)
+        ca = math.cos(azim)
+        sa = math.sin(azim)
+        return [ce * ca, ce * sa, se]
+
+    def _emit_camera_state(self):
+        """发布当前相机状态到 on_camera_changed 回调"""
+        if self.on_camera_changed:
+            normal = self._compute_camera_normal()
+            data = [normal[0], normal[1], normal[2], self._cam.distance]
+            self._camera_echo_guard = data  # 记录本次发布，用于回声检测
+            self.on_camera_changed(data)
+
+    def apply_camera_state(self, camera_data):
+        """
+        外部设置相机状态 (来自网关广播)
+        带回声防护: 如果与最近发布的状态一致则忽略
+        """
+        if len(camera_data) < 4:
+            return
+        # 回声检测
+        if self._camera_echo_guard is not None:
+            diff = sum(abs(a - b) for a, b in zip(camera_data, self._camera_echo_guard))
+            if diff < 0.001:
+                return
+        self._camera_echo_guard = None
+
+        # 从法向量和距离反推 azimuth/elevation
+        nx, ny, nz = camera_data[0], camera_data[1], camera_data[2]
+        dist = camera_data[3]
+        # forward = (ce*ca, ce*sa, se)
+        # se = nz → elev = asin(nz)
+        nz_clamped = max(-1.0, min(1.0, nz))
+        self._cam.elevation = math.degrees(math.asin(nz_clamped))
+        ce = math.cos(math.radians(self._cam.elevation))
+        if abs(ce) > 1e-6:
+            # ca = nx/ce, sa = ny/ce → azimuth = atan2(sa, ca)
+            self._cam.azimuth = math.degrees(math.atan2(ny / ce, nx / ce))
+        self._cam.distance = max(0.1, min(1.0, dist))
+        self._dirty = True
 
     def _rotate_camera(self, dx, dy):
         # 轴锁定
@@ -324,6 +371,7 @@ class HandModelWidget(QWidget):
         self._cam.elevation -= dy * 0.3
         self._cam.elevation = max(-89, min(89, self._cam.elevation))
         self._dirty = True
+        self._emit_camera_state()
 
     # ==== IK 求解 (解空间轨迹绑定) ====
 

@@ -1,9 +1,9 @@
 <?xml version="1.0"?>
 <?xml-model href="http://ros.org/schema/xsd/format.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>l10_hand_control_panel</name>
+  <name>l10_hand_gateway</name>
   <version>0.0.1</version>
-  <description>L10 Hand Control Panel - GUI for controlling 10 DOF</description>
+  <description>L10 Hand Gateway - control topic reverse proxy and state proxy</description>
   <maintainer email="larkume@todo.todo">larkume</maintainer>
   <license>TODO: Declaration of the license</license>
 
@@ -18,7 +18,6 @@
   <depend>std_msgs</depend>
   <depend>geometry_msgs</depend>
   <depend>hand_forward_kinematics</depend>
-  <depend>linker_hand_description</depend>
 
   <test_depend>python3-pytest</test_depend>
 
