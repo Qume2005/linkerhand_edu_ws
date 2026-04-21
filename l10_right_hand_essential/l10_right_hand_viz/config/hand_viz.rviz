@@ -1,0 +1,223 @@
+Panels:
+  []
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Alpha: 0.5
+      Cell Size: 1
+      Class: rviz_default_plugins/Grid
+      Color: 38; 162; 105
+      Enabled: true
+      Line Style:
+        Line Width: 0.029999999329447746
+        Value: Lines
+      Name: Grid
+      Normal Cell Count: 0
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0
+      Plane: XY
+      Plane Cell Count: 20
+      Reference Frame: base_link
+      Value: true
+    - Alpha: 1
+      Class: rviz_default_plugins/RobotModel
+      Collision Enabled: false
+      Description File: ""
+      Description Source: Topic
+      Description Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /robot_description
+      Enabled: true
+      Links:
+        All Links Enabled: true
+        Expand Joint Details: false
+        Expand Link Details: false
+        Expand Tree: false
+        Link Tree Style: Links in Alphabetic Order
+        base_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        index_link0:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        index_link1:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        index_link2:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        index_link3:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        index_link4:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        little_link0:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        little_link1:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        little_link2:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        little_link3:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        little_link4:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        middle_link0:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        middle_link1:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        middle_link2:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        middle_link3:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        ring_link0:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        ring_link1:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        ring_link2:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        ring_link3:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        ring_link4:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        thumb_link0:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        thumb_link1:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        thumb_link2:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        thumb_link3:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        thumb_link4:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        thumb_link5:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+      Mass Properties:
+        Inertia: false
+        Mass: false
+      Name: L10 Hand Model
+      TF Prefix: ""
+      Update Interval: 0
+      Value: true
+      Visual Enabled: true
+  Enabled: true
+  Global Options:
+    Background Color: 153; 193; 241
+    Fixed Frame: base_link
+    Frame Rate: 30
+  Name: root
+  Tools:
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/FocusCamera
+  Transformation:
+    Current:
+      Class: rviz_default_plugins/TF
+  Value: true
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Distance: 0.550722599029541
+      Enable Stereo Rendering:
+        Stereo Eye Separation: 0.05999999865889549
+        Stereo Focal Distance: 1
+        Swap Stereo Eyes: false
+        Value: false
+      Focal Point:
+        X: 0
+        Y: 0
+        Z: 0.03999999910593033
+      Focal Shape Fixed Size: true
+      Focal Shape Size: 0.05000000074505806
+      Invert Z Axis: false
+      Name: Current View
+      Near Clip Distance: 0.009999999776482582
+      Pitch: 0.37000006437301636
+      Target Frame: <Fixed Frame>
+      Value: Orbit (rviz_default_plugins)
+      Yaw: 6.1431803703308105
+    Saved: ~
+Window Geometry:
+  Height: 600
+  Hide Left Dock: false
+  Hide Right Dock: false
+  QMainWindow State: 000000ff00000000fd00000000000003200000022700000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730000000000ffffffff0000000000000000
+  Width: 800
+  X: 72
+  Y: 617
