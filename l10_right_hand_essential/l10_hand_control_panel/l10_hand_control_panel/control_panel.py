@@ -759,6 +759,7 @@ class ControlPanelWindow(QWidget):
 
 
 def main(args=None):
+    import signal
     rclpy.init()
 
     app = QApplication(sys.argv)
@@ -773,6 +774,9 @@ def main(args=None):
     # 启动后立即发布默认目标值
     window.publish_current()
 
+    # SIGINT (Ctrl+C) → 关闭 Qt 窗口 → app.exec_() 返回
+    signal.signal(signal.SIGINT, lambda sig, frame: app.quit())
+
     # ROS spin 线程
     def ros_spin():
         while rclpy.ok():
@@ -782,6 +786,7 @@ def main(args=None):
     spin_thread.start()
 
     ret = app.exec_()
+    ros_node.destroy_node()
     rclpy.shutdown()
     sys.exit(ret)
 

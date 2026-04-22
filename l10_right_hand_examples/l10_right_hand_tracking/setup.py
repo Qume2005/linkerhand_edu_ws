@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 import os
 from glob import glob
 
-package_name = 'l10_right_hand_examples'
+package_name = 'l10_right_hand_tracking'
 
 setup(
     name=package_name,
@@ -23,7 +23,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'hand_tracking_node = l10_right_hand_examples.hand_tracking_node:main',
+            'hand_tracking_node = l10_right_hand_tracking.hand_tracking_node:main',
         ],
     },
 )

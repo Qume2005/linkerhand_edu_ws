@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>l10_right_hand_examples</name>
+  <name>l10_right_hand_tracking</name>
   <version>0.0.1</version>
   <description>Camera-based hand tracking example for L10 robotic hand</description>
   <maintainer email="larkume@todo.todo">larkume</maintainer>
@@ -10,7 +10,7 @@
   <depend>rclpy</depend>
   <depend>sensor_msgs</depend>
   <depend>std_msgs</depend>
-
+  <depend>hand_forward_kinematics</depend>
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
   <test_depend>ament_pep257</test_depend>

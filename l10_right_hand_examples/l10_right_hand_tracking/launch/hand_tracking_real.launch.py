@@ -1,6 +1,6 @@
 """
 手势跟随真机: CAN 驱动 + 网关 + 面板 + 可视化 + 摄像头手势跟踪
-launch: ros2 launch l10_right_hand_examples hand_tracking_real.launch.py
+launch: ros2 launch l10_right_hand_tracking hand_tracking_real.launch.py
 可选参数:
   camera_id  — 摄像头编号, 默认 0
   publish_hz — 发布频率, 默认 30
@@ -31,7 +31,7 @@ def generate_launch_description():
         period=9.0,
         actions=[
             Node(
-                package='l10_right_hand_examples',
+                package='l10_right_hand_tracking',
                 executable='hand_tracking_node',
                 name='hand_tracking_node',
                 parameters=[{
