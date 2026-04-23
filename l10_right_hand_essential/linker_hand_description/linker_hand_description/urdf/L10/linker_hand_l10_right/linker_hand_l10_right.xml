@@ -80,6 +80,7 @@
                             <joint name="thumb_joint4" pos="0 0 0" axis="1 0 0" limited="true" range="0 0.7" />
                             <geom type="mesh" rgba="1 1 1 1" mesh="thumb_link4" />
                             <geom pos="0.0023001 0.037723 0" quat="-3.64259e-06 -4.73241e-07 0.128836 0.991666" type="mesh" rgba="1 1 1 1" mesh="thumb_link5" />
+                            <site name="thumb_tip" pos="0.0023001 0.037723 0" size="0.005" rgba="1 0 0 0.5"/>
                         </body>
                     </body>
                 </body>
@@ -102,6 +103,7 @@
                         <joint name="index_joint3" pos="0 0 0" axis="0 1 0" limited="true" range="0 0.96" />
                         <geom type="mesh" rgba="1 1 1 1" mesh="index_link3" />
                         <geom pos="-0.014222 -0.00417 0.034954" type="mesh" rgba="1 1 1 1" mesh="index_link4" />
+                        <site name="index_tip" pos="-0.014222 -0.00417 0.034954" size="0.005" rgba="1 0.5 0 0.5"/>
                     </body>
                 </body>
             </body>
@@ -119,6 +121,7 @@
                     <joint name="middle_joint2" pos="0 0 0" axis="0 1 0" limited="true" range="0 0.96" />
                     <geom type="mesh" rgba="1 1 1 1" mesh="middle_link2" />
                     <geom pos="-0.014222 -0.00417 0.034954" type="mesh" rgba="1 1 1 1" mesh="middle_link3" />
+                    <site name="middle_tip" pos="-0.014222 -0.00417 0.034954" size="0.005" rgba="0.2 0.6 1 0.5"/>
                 </body>
             </body>
         </body>
@@ -139,6 +142,7 @@
                         <joint name="ring_joint3" pos="0 0 0" axis="0 1 0" limited="true" range="0 0.96" />
                         <geom type="mesh" rgba="1 1 1 1" mesh="ring_link3" />
                         <geom pos="-0.014222 -0.00417 0.034954" type="mesh" rgba="1 1 1 1" mesh="ring_link4" />
+                        <site name="ring_tip" pos="-0.014222 -0.00417 0.034954" size="0.005" rgba="0.5 0.5 0.5 0.5"/>
                     </body>
                 </body>
             </body>
@@ -160,6 +164,7 @@
                         <joint name="little_joint3" pos="0 0 0" axis="0 1 0" limited="true" range="0 0.96" />
                         <geom type="mesh" rgba="1 1 1 1" mesh="little_link3" />
                         <geom pos="-0.014222 -0.00417 0.034954" type="mesh" rgba="1 1 1 1" mesh="little_link4" />
+                        <site name="little_tip" pos="-0.014222 -0.00417 0.034954" size="0.005" rgba="1 1 0.5 0.5"/>
                     </body>
                 </body>
             </body>
@@ -192,4 +197,16 @@
         <position name="little_pos2" joint="little_joint2" kp="10" ctrlrange="0 1.62"/>
         <position name="little_pos3" joint="little_joint3" kp="10" ctrlrange="0 0.96"/>
     </actuator>
+    <sensor>
+        <force name="thumb_force" site="thumb_tip"/>
+        <force name="index_force" site="index_tip"/>
+        <force name="middle_force" site="middle_tip"/>
+        <force name="ring_force" site="ring_tip"/>
+        <force name="little_force" site="little_tip"/>
+        <touch name="thumb_touch" site="thumb_tip"/>
+        <touch name="index_touch" site="index_tip"/>
+        <touch name="middle_touch" site="middle_tip"/>
+        <touch name="ring_touch" site="ring_tip"/>
+        <touch name="little_touch" site="little_tip"/>
+    </sensor>
 </mujoco>
