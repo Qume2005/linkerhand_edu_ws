@@ -577,7 +577,7 @@ class ControlPanelWindow(QWidget):
         plbl = QLabel("预设手势:")
         plbl.setStyleSheet(f"color: {COLOR_TEXT_DIM};")
         preset_row.addWidget(plbl)
-        for text, fn in [("OK", self.preset_ok), ("捏取", self.preset_pinch), ("指向", self.preset_point)]:
+        for text, fn in [("张开", self.open_hand), ("握拳", self.close_hand), ("OK", self.preset_ok), ("捏取", self.preset_pinch), ("指向", self.preset_point)]:
             b = QPushButton(text)
             b.setFixedWidth(60)
             b.clicked.connect(fn)
@@ -749,13 +749,13 @@ class ControlPanelWindow(QWidget):
         self._set_all([d["default"] for d in DOF_DEFINITIONS])
 
     def preset_ok(self):
-        self._set_all([100, 150, 200, 0, 0, 0, 200, 0, 0, 100])
+        self._set_all([80, 110, 116, 255, 255, 255, 255, 255, 255, 54])
 
     def preset_pinch(self):
-        self._set_all([80, 120, 180, 0, 0, 0, 180, 0, 0, 80])
+        self._set_all([92, 112, 121, 0, 0, 0, 132, 0, 0, 48])
 
     def preset_point(self):
-        self._set_all([50, 0, 0, 0, 200, 200, 0, 200, 200, 50])
+        self._set_all([0, 128, 255, 0, 24, 16, 49, 36, 81, 16])
 
 
 def main(args=None):
