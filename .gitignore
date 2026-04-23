@@ -23,4 +23,7 @@ __pycache__/
 .DS_Store
 Thumbs.db
 
+# LLM settings
+llm_settings.json
+
 .claude/

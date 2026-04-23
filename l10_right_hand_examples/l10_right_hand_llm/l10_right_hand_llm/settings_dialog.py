@@ -8,7 +8,7 @@ from PySide2.QtWidgets import (
     QDialogButtonBox, QLabel,
 )
 
-_SETTINGS_PATH = os.path.join(os.path.dirname(__file__), "llm_settings.json")
+_SETTINGS_PATH = os.path.join(os.getcwd(), "llm_settings.json")
 
 _DEFAULTS = {
     "OpenAI": {
