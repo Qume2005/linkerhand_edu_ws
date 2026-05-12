@@ -33,6 +33,7 @@ def quat_rotate(q, v):
 
 
 def axis_angle_to_quat(axis, angle):
+
     """轴角转四元数 (w, x, y, z)"""
     half = angle * 0.5
     s = math.sin(half)

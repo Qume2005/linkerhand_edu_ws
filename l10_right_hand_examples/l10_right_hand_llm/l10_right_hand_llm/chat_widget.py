@@ -16,7 +16,7 @@ from l10_right_hand_llm.conversation import ConversationManager
 from l10_right_hand_llm.llm_client import LLMClientBase, LLMResponse, create_client
 from l10_right_hand_llm.settings_dialog import SettingsDialog
 from l10_right_hand_llm.tool_definition import (
-    DOF_ORDER, build_system_prompt, build_user_context, get_tools,
+    DOF_ORDER, build_system_prompt, build_user_context, eval_vector, get_tools,
 )
 
 # ---- 暗色主题配色 ----
@@ -88,7 +88,7 @@ class _StateSignal(QWidget):
 class ChatWindow(QWidget):
     """主聊天窗口。"""
 
-    dof_publish_requested = Signal(list)
+    dof_publish_requested = Signal(list, float)
 
     def __init__(self):
         super().__init__()
@@ -117,9 +117,9 @@ class ChatWindow(QWidget):
         self.ros_node = node
         self.dof_publish_requested.connect(self._publish_dof)
 
-    def _publish_dof(self, values: list):
+    def _publish_dof(self, values: list, duration: float):
         if self.ros_node:
-            self.ros_node.publish_dof(values)
+            self.ros_node.publish_dof(values, duration)
 
     def _apply_stylesheet(self):
         self.setStyleSheet(f"""
@@ -296,11 +296,38 @@ class ChatWindow(QWidget):
     def _handle_tool_calls(self, tool_calls: list):
         for tc in tool_calls:
             if tc.name == "set_hand_dof":
-                values = self._extract_dof(tc.arguments)
+                values, duration = self._extract_dof(tc.arguments)
                 self._last_published_dof = list(values)
-                self._add_display_msg("tool", f"set_hand_dof([{', '.join(str(v) for v in values)}])", values=values)
-                self.dof_publish_requested.emit(values)
-                result = f"已执行: DOF={values}"
+                self._add_display_msg("tool", f"set_hand_dof([{', '.join(str(v) for v in values)}], duration={duration:.3f}s)", values=values)
+                self.dof_publish_requested.emit(values, duration)
+                result = f"已执行: DOF={values}, 过渡={duration:.3f}s"
+            elif tc.name == "queue_hand_actions":
+                actions, loop = self._extract_action_queue(tc.arguments)
+                last_dof = actions[-1]["dof"] if actions else [127] * 10
+                self._last_published_dof = list(last_dof)
+                desc = tc.arguments.get("description", "动作序列")
+                step_count = len(actions)
+                self._add_display_msg(
+                    "tool",
+                    f"queue_hand_actions(\"{desc}\", {step_count}步, 循环={loop})",
+                )
+                if self.ros_node:
+                    self.ros_node.queue_actions(actions, loop)
+                result = f"已执行动作队列: \"{desc}\", {step_count}步, 循环={loop}"
+            elif tc.name == "vector_calc":
+                expression = tc.arguments.get("expression", "x")
+                vector = tc.arguments.get("vector", [])
+                try:
+                    computed = eval_vector(expression, vector)
+                    # 尝试 round 为整数显示
+                    display = [int(round(v)) if abs(v - round(v)) < 0.001 else round(v, 3) for v in computed]
+                    result = str(display)
+                except Exception as exc:
+                    result = f"计算错误: {exc}"
+                self._add_display_msg(
+                    "tool",
+                    f"vector_calc(\"{expression}\", {vector}) = {result}",
+                )
             else:
                 result = f"未知工具: {tc.name}"
 
@@ -329,12 +356,39 @@ class ChatWindow(QWidget):
         dof = self.ros_node.get_current_dof() if self.ros_node else [255] * 10
         self._conversation.update_system(build_system_prompt(dof))
 
-    def _extract_dof(self, arguments: dict) -> list:
+    def _extract_dof(self, arguments: dict):
         values = []
         for name in DOF_ORDER:
             v = arguments.get(name, 127)
             values.append(max(0, min(255, int(v))))
-        return values
+        duration = arguments.get("duration", None)
+        if duration is None:
+            duration = 0.0  # 节点会用默认值 0.618
+        else:
+            duration = max(0.05, min(10.0, float(duration)))
+        return values, duration
+
+    def _extract_action_queue(self, arguments: dict):
+        raw_actions = arguments.get("actions", [])
+        actions = []
+        for step in raw_actions:
+            values = []
+            for name in DOF_ORDER:
+                v = step.get(name, 127)
+                values.append(max(0, min(255, int(v))))
+            duration = step.get("duration", None)
+            if duration is None:
+                duration = 0.0
+            else:
+                duration = max(0.05, min(10.0, float(duration)))
+            pause = max(0.0, min(10.0, float(step.get("pause", 0.0))))
+            actions.append({
+                "dof": values,
+                "duration": duration,
+                "pause": pause,
+            })
+        loop = arguments.get("loop", False)
+        return actions, loop
 
     def _on_error(self, msg: str):
         self._add_display_msg("error", msg)
