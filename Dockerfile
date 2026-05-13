@@ -3,6 +3,10 @@ FROM docker.m.daocloud.io/ros:jazzy-ros-base
 # 避免交互式提示
 ENV DEBIAN_FRONTEND=noninteractive
 
+# ---- apt 使用阿里云镜像源 ----
+RUN sed -i 's|http://archive.ubuntu.com|https://mirrors.aliyun.com|g' /etc/apt/sources.list.d/ubuntu.sources \
+    && sed -i 's|http://security.ubuntu.com|https://mirrors.aliyun.com|g' /etc/apt/sources.list.d/ubuntu.sources
+
 # ---- 系统依赖 ----
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-pip \
@@ -35,8 +39,9 @@ RUN mkdir -p /root/.config/fcitx5 && \
 [Groups/0/Items/0]\nName=keyboard-us\nLayout=\n\
 [Groups/0/Items/1]\nName=pinyin\nLayout=\n' > /root/.config/fcitx5/profile
 
-# ---- Python 依赖 ----
+# ---- Python 依赖 (使用清华镜像源) ----
 RUN pip3 install --no-cache-dir --break-system-packages \
+    -i https://pypi.tuna.tsinghua.edu.cn/simple \
     mujoco==3.4.0 \
     openai>=1.12.0
 
