@@ -76,10 +76,9 @@ QUEUE_DESCRIPTION = (
     "- Add pauses (0.2-1.0s) between key poses so each gesture is clearly visible.\n"
     "- For rhythmic motions (waving, beckoning), alternate between 2-3 poses with "
     "equal duration+pause for a natural rhythm.\n"
-    "- When loop=true, the LAST step MUST include a pause value so the final pose "
-    "is held before the sequence wraps around to step 1. Without it, the loop "
-    "boundary will feel abrupt. Match the last step's pause to the rhythm of the "
-    "other steps.\n"
+    "- IMPORTANT RULE for loop=true: The LAST step in the sequence MUST ALWAYS "
+    "have an explicit pause value (do NOT leave it as 0 or omit it). Match it to "
+    "the rhythm of the other steps. Without it, the loop boundary feels broken.\n"
     "- The FIRST step transitions from the hand's current position.\n"
     "- Use 3-8 steps for most sequences. More steps allow richer animations but "
     "take longer to generate.\n\n"
@@ -106,7 +105,8 @@ QUEUE_DESCRIPTION = (
     "   Example: ring finger circle, bend center=227 amp=28, lateral center=128 amp=127, N=8:\n"
     "     bend values = vector_calc('round(227+28*cos(2*pi*x/8))', [0,1,2,3,4,5,6,7])\n"
     "     lateral values = vector_calc('round(128+127*sin(2*pi*x/8))', [0,1,2,3,4,5,6,7])\n"
-    "     All other DOFs = 0 (full fist including thumb). Each step: duration=0.15, pause=0.\n"
+    "     All other DOFs = 0 (full fist including thumb). Each step: duration=0.15, pause=0. "
+    "The LAST step must also have pause=0.1 so the loop wraps smoothly.\n"
     "     This technique works for any finger: use its (bend, lateral) pair as the two axes.\n"
 )
 
