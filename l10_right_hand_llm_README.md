@@ -28,7 +28,7 @@ ros2 launch l10_right_hand_llm llm_control_real.launch.py
 docker build -t l10-llm-control .
 
 # 仿真模式 (挂载配置文件，复用宿主机 API Key)
-xhost +
+xhost +local:
 docker run -it --rm \
   -e DISPLAY=$DISPLAY \
   -v /tmp/.X11-unix:/tmp/.X11-unix \
@@ -37,6 +37,7 @@ docker run -it --rm \
   l10-llm-control
 
 # 真机模式
+xhost +local:
 docker run -it --rm \
   --network=host \
   --device=/dev/can0 \
@@ -48,11 +49,14 @@ docker run -it --rm \
   ros2 launch l10_right_hand_llm llm_control_real.launch.py
 ```
 
+容器内置 fcitx5 中文拼音输入法，启动时自动运行。首次使用需右键点击系统托盘输入法图标添加「拼音」输入法。
+
 `-v $(pwd)/llm_settings.json:/ws/llm_settings.json` 把宿主机工作目录下的配置文件映射进容器，这样容器直接复用已配置好的 API Key，不用重新设置。需要从工作空间目录下运行命令。
 
 如果 GUI 无法启动（`could not connect to display`），加 `--net=host`：
 
 ```bash
+xhost +local:
 docker run -it --rm \
   --net=host \
   -e DISPLAY=$DISPLAY \
@@ -67,6 +71,7 @@ Docker 下 MuJoCo OpenGL 渲染可能出现花屏或崩溃，按显卡情况选�
 
 ```bash
 # NVIDIA 显卡 — GPU 直通（需要 nvidia-container-toolkit）
+xhost +local:
 docker run -it --rm \
   --gpus all \
   -e DISPLAY=$DISPLAY \
@@ -76,6 +81,7 @@ docker run -it --rm \
   l10-llm-control
 
 # 无 NVIDIA / 软件渲染
+xhost +local:
 docker run -it --rm \
   -e DISPLAY=$DISPLAY \
   -e LIBGL_ALWAYS_SOFTWARE=1 \
@@ -192,5 +198,5 @@ docker run -it --rm \
 |------|----------|
 | "请先配置 API Key" | 点击设置按钮，填入 API Key |
 | 连接超时 | 检查 Base URL 是否可达，或配置代理 |
-| Docker `could not connect to display` | 运行 `xhost +`，并加上 `-v $HOME/.Xauthority:/root/.Xauthority:ro`，必要时加 `--net=host` |
+| Docker `could not connect to display` | 运行 `xhost +local:`，并加上 `-v $HOME/.Xauthority:/root/.Xauthority:ro`，必要时加 `--net=host` |
 | Docker 找不到 CAN 设备 | 确认设备路径，加 `--device=/dev/can0` |
