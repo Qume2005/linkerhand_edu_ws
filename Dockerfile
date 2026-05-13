@@ -18,7 +18,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ros-jazzy-rviz2 \
     ros-jazzy-geometry-msgs \
     fonts-noto-cjk \
+    fcitx5 \
+    fcitx5-chinese-addons \
+    fcitx5-frontend-qt5 \
     && rm -rf /var/lib/apt/lists/*
+
+# 中文输入法环境变量
+ENV QT_IM_MODULE=fcitx \
+    GTK_IM_MODULE=fcitx \
+    XMODIFIERS=@im=fcitx
 
 # ---- Python 依赖 ----
 RUN pip3 install --no-cache-dir --break-system-packages \
@@ -59,6 +67,7 @@ COPY <<'EOF' /entrypoint.sh
 set -e
 source /opt/ros/jazzy/setup.bash
 source /ws/install/setup.bash
+fcitx5 -d 2>/dev/null || true
 exec "$@"
 EOF
 RUN chmod +x /entrypoint.sh
