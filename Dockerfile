@@ -29,7 +29,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ENV QT_IM_MODULE=fcitx \
     GTK_IM_MODULE=fcitx \
     XMODIFIERS=@im=fcitx
-RUN mkdir -p /etc/xdg/fcitx5 && printf '[Hotkey]\nTrigger=Ctrl+space\n' > /etc/xdg/fcitx5/config
+RUN mkdir -p /etc/xdg/fcitx5 && \
+    printf '[Hotkey]\nTrigger=Ctrl+space\n' > /etc/xdg/fcitx5/config && \
+    printf '[Groups/0]\nName=Default\nDefault Layout=us\nDefaultIM=pinyin\n\
+[Groups/0/Items/0]\nName=keyboard-us\nLayout=\n\
+[Groups/0/Items/1]\nName=pinyin\nLayout=\n' > /etc/xdg/fcitx5/profile
 
 # ---- Python 依赖 ----
 RUN pip3 install --no-cache-dir --break-system-packages \
