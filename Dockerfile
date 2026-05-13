@@ -25,10 +25,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     dbus-x11 \
     && rm -rf /var/lib/apt/lists/*
 
-# 中文输入法
+# 中文输入法 + 默认 Ctrl+Space 切换
 ENV QT_IM_MODULE=fcitx \
     GTK_IM_MODULE=fcitx \
     XMODIFIERS=@im=fcitx
+RUN mkdir -p /etc/xdg/fcitx5 && printf '[Hotkey]\nTrigger=Ctrl+space\n' > /etc/xdg/fcitx5/config
 
 # ---- Python 依赖 ----
 RUN pip3 install --no-cache-dir --break-system-packages \
