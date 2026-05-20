@@ -13,11 +13,11 @@ from hand_forward_kinematics.kinematics import range_to_arc_l10_right, expand_to
 
 # MuJoCo XML 中的 20 个关节名 (按 qpos 索引顺序)
 JOINT_NAMES = [
-    "thumb_joint0", "thumb_joint1", "thumb_joint2", "thumb_joint3", "thumb_joint4",
-    "index_joint0", "index_joint1", "index_joint2", "index_joint3",
-    "middle_joint0", "middle_joint1", "middle_joint2",
-    "ring_joint0", "ring_joint1", "ring_joint2", "ring_joint3",
-    "little_joint0", "little_joint1", "little_joint2", "little_joint3",
+    "thumb_cmc_roll", "thumb_cmc_yaw", "thumb_cmc_pitch", "thumb_mcp", "thumb_ip",
+    "index_mcp_roll", "index_mcp_pitch", "index_pip", "index_dip",
+    "middle_mcp_pitch", "middle_pip", "middle_dip",
+    "ring_mcp_roll", "ring_mcp_pitch", "ring_pip", "ring_dip",
+    "pinky_mcp_roll", "pinky_mcp_pitch", "pinky_pip", "pinky_dip",
 ]
 
 

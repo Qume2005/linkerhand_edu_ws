@@ -63,8 +63,8 @@ MIMIC_JOINTS = {
 # DOF0: 拇指弯曲  DOF1: 拇指侧摆  DOF2: 食指弯曲  DOF3: 中指弯曲  DOF4: 无名指弯曲
 # DOF5: 小指弯曲  DOF6: 食指侧摆  DOF7: 无名指侧摆  DOF8: 小指侧摆  DOF9: 拇指侧旋
 L10_R_MIN = [0, 0, 0, 0, 0, 0, -0.26, 0, 0, -0.52]
-L10_R_MAX = [0.75, 1.43, 1.62, 1.62, 1.62, 1.62, 0, 0.13, 0.26, 1.01]
-L10_R_DIRECT = [-1, -1, -1, -1, -1, -1, -1, 0, 0, -1]
+L10_R_MAX = [0.75, 1.43, 1.62, 1.62, 1.62, 1.62, 0.21, 0.21, 0.34, 1.01]
+L10_R_DIRECT = [-1, -1, -1, -1, -1, -1, 0, 0, 0, -1]
 
 # L10 手指顺序（与 SDK linker_hand_l10_can.py:478 一致）
 L10_FINGER_ORDER = [
@@ -75,11 +75,11 @@ L10_FINGER_ORDER = [
 
 # 指尖 body 名称（只有指尖有传感器）
 FINGERTIP_BODIES = {
-    "thumb_link4": 0,   # thumb
-    "index_link3": 1,   # index
-    "middle_link2": 2,  # middle
-    "ring_link3": 3,    # ring
-    "little_link3": 4,  # little
+    "thumb_distal": 0,   # thumb
+    "index_distal": 1,   # index
+    "middle_distal": 2,  # middle
+    "ring_distal": 3,    # ring
+    "pinky_distal": 4,   # little
 }
 
 

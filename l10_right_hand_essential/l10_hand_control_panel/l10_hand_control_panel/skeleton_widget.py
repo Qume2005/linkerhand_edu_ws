@@ -29,11 +29,11 @@ from linker_hand_description import get_urdf_path
 # ============================================================================
 
 CONTROL_POINTS = [
-    {"name": "thumb_tip",    "geom_id": 6,  "dofs": [0, 1, 9],     "color": QColor(255, 102, 102, 200)},
-    {"name": "index_tip",    "geom_id": 11, "dofs": [2, 6],        "color": QColor(102, 255, 102, 200)},
-    {"name": "middle_tip",   "geom_id": 15, "dofs": [3],           "color": QColor(102, 102, 255, 200)},
-    {"name": "ring_tip",     "geom_id": 20, "dofs": [4, 7],        "color": QColor(255, 255, 102, 200)},
-    {"name": "little_tip",   "geom_id": 25, "dofs": [5, 8],        "color": QColor(255, 102, 255, 200)},
+    {"name": "thumb_tip",    "geom_id": 5,  "dofs": [0, 1, 9],     "color": QColor(255, 102, 102, 200)},
+    {"name": "index_tip",    "geom_id": 9,  "dofs": [2, 6],        "color": QColor(102, 255, 102, 200)},
+    {"name": "middle_tip",   "geom_id": 12, "dofs": [3],           "color": QColor(102, 102, 255, 200)},
+    {"name": "ring_tip",     "geom_id": 16, "dofs": [4, 7],        "color": QColor(255, 255, 102, 200)},
+    {"name": "little_tip",   "geom_id": 20, "dofs": [5, 8],        "color": QColor(255, 102, 255, 200)},
 ]
 
 

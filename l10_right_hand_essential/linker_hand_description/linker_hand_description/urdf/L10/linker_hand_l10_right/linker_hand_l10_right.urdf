@@ -8,17 +8,17 @@
     name="base_link">
     <inertial>
       <origin
-        xyz="-0.00284320154896534 -0.0019663450402118 0.0779870777870085"
+        xyz="-0.00378572993474923 -0.000415839048931058 0.0836392883613671"
         rpy="0 0 0" />
       <mass
-        value="0.0813387471555535" />
+        value="0.10884427610512" />
       <inertia
-        ixx="0.00017785649030784"
-        ixy="5.00135886029556E-07"
-        ixz="9.27817204812344E-06"
-        iyy="0.000141368400897975"
-        iyz="2.04531111242826E-06"
-        izz="6.29744674479425E-05" />
+        ixx="0.00019345483956042"
+        ixy="1.28842682703635E-06"
+        ixz="1.97005632028112E-07"
+        iyy="0.000129793182936336"
+        iyz="-2.34961034039841E-06"
+        izz="7.75126657491835E-05" />
     </inertial>
     <visual>
       <origin
@@ -26,403 +26,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/base_link.STL" />
-      </geometry>
-      <material
-        name="">
-        <color
-          rgba="1 1 1 1" />
-      </material>
-    </visual>
-    <collision>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/base_link.STL" />
-      </geometry>
-    </collision>
-  </link>
-  <link
-    name="thumb_link0">
-    <inertial>
-      <origin
-        xyz="0.0231878415158512 -0.00228979488496791 -0.00230333017081778"
-        rpy="0 0 0" />
-      <mass
-        value="0.0115252608128539" />
-      <inertia
-        ixx="3.08674888058707E-06"
-        ixy="2.20036047947897E-07"
-        ixz="2.23595627683628E-07"
-        iyy="3.16301390845565E-06"
-        iyz="-1.20712780020986E-06"
-        izz="3.16513270196532E-06" />
-    </inertial>
-    <visual>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/thumb_link0.STL" />
-      </geometry>
-      <material
-        name="">
-        <color
-          rgba="0.4 0.4 0.4 1" />
-      </material>
-    </visual>
-    <collision>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/thumb_link0.STL" />
-      </geometry>
-    </collision>
-  </link>
-  <joint
-    name="thumb_joint0"
-    type="revolute">
-    <origin
-      xyz="-0.017939 0.018426 0.057469"
-      rpy="0 0 0" />
-    <parent
-      link="base_link" />
-    <child
-      link="thumb_link0" />
-    <axis
-      xyz="1 0 0" />
-    <limit
-      lower="-0.52"
-      upper="1.01"
-      effort="100"
-      velocity="1" />
-  </joint>
-  <link
-    name="thumb_link1">
-    <inertial>
-      <origin
-        xyz="-5.30053868883634E-05 0.000521078007248099 0.0153021951708409"
-        rpy="0 0 0" />
-      <mass
-        value="0.0170450902435683" />
-      <inertia
-        ixx="3.4036494904956E-06"
-        ixy="-1.04541727452298E-09"
-        ixz="4.45679795518298E-10"
-        iyy="1.94593233833019E-06"
-        iyz="-6.5271014605079E-08"
-        izz="2.60831349423858E-06" />
-    </inertial>
-    <visual>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/thumb_link1.STL" />
-      </geometry>
-      <material
-        name="">
-        <color
-          rgba="0.4 0.4 0.4 1" />
-      </material>
-    </visual>
-    <collision>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/thumb_link1.STL" />
-      </geometry>
-    </collision>
-  </link>
-  <joint
-    name="thumb_joint1"
-    type="revolute">
-    <origin
-      xyz="0.0303 -0.0097852 -0.0097852"
-      rpy="-0.66405 -0.4558 -0.51236" />
-    <parent
-      link="thumb_link0" />
-    <child
-      link="thumb_link1" />
-    <axis
-      xyz="0 0 -1" />
-    <limit
-      lower="0"
-      upper="1.43"
-      effort="100"
-      velocity="1" />
-  </joint>
-  <link
-    name="thumb_link2">
-    <inertial>
-      <origin
-        xyz="-0.00445706924663304 0.0207889802748293 -0.00175639786725086"
-        rpy="0 0 0" />
-      <mass
-        value="0.0151261507899937" />
-      <inertia
-        ixx="4.07087999177079E-06"
-        ixy="-1.28889277054903E-09"
-        ixz="9.69106224283976E-10"
-        iyy="1.38085387686937E-06"
-        iyz="2.51428333457697E-07"
-        izz="2.97846552856017E-06" />
-    </inertial>
-    <visual>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/thumb_link2.STL" />
-      </geometry>
-      <material
-        name="">
-        <color
-          rgba="1 1 1 1" />
-      </material>
-    </visual>
-    <collision>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/thumb_link2.STL" />
-      </geometry>
-    </collision>
-  </link>
-  <joint
-    name="thumb_joint2"
-    type="revolute">
-    <origin
-      xyz="0.0039399 0.028731 0.012357"
-      rpy="0.5691 0 0" />
-    <parent
-      link="thumb_link1" />
-    <child
-      link="thumb_link2" />
-    <axis
-      xyz="1 0 0" />
-    <limit
-      lower="0"
-      upper="0.44"
-      effort="100"
-      velocity="1" />
-    <mimic
-      joint="thumb_joint3"
-      multiplier="0.58"
-      offset="0" />
-  </joint>
-  <link
-    name="thumb_link3">
-    <inertial>
-      <origin
-        xyz="0.0066161 0.01503 0.00044042"
-        rpy="0 0 0" />
-      <mass
-        value="0.0054986" />
-      <inertia
-        ixx="8.897E-07"
-        ixy="4.2516E-10"
-        ixz="-2.3171E-11"
-        iyy="4.021E-07"
-        iyz="4.8078E-08"
-        izz="9.9029E-07" />
-    </inertial>
-    <visual>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/thumb_link3.STL" />
-      </geometry>
-      <material
-        name="">
-        <color
-          rgba="0.50196 1 0.50196 1" />
-      </material>
-    </visual>
-    <collision>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/thumb_link3.STL" />
-      </geometry>
-    </collision>
-  </link>
-  <joint
-    name="thumb_joint3"
-    type="revolute">
-    <origin
-      xyz="-0.01062 0.050514 0"
-      rpy="-0.19254 0 0" />
-    <parent
-      link="thumb_link2" />
-    <child
-      link="thumb_link3" />
-    <axis
-      xyz="1 0 0" />
-    <limit
-      lower="0"
-      upper="0.75"
-      effort="100"
-      velocity="1" />
-  </joint>
-  <link
-    name="thumb_link4">
-    <inertial>
-      <origin
-        xyz="0.00129959528347738 0.0146145573247327 0.000964326208758221"
-        rpy="0 0 0" />
-      <mass
-        value="0.00539940226762366" />
-      <inertia
-        ixx="3.63134136192503E-07"
-        ixy="-1.60436705461041E-11"
-        ixz="-1.11240027780994E-10"
-        iyy="2.2838700390913E-07"
-        iyz="9.15078179633966E-08"
-        izz="4.08051493809085E-07" />
-    </inertial>
-    <visual>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/thumb_link4.STL" />
-      </geometry>
-      <material
-        name="">
-        <color
-          rgba="1 1 1 1" />
-      </material>
-    </visual>
-    <collision>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/thumb_link4.STL" />
-      </geometry>
-    </collision>
-  </link>
-  <joint
-    name="thumb_joint4"
-    type="revolute">
-    <origin
-      xyz="0.00532 0.036667 0"
-      rpy="-0.11817 0 0" />
-    <parent
-      link="thumb_link3" />
-    <child
-      link="thumb_link4" />
-    <axis
-      xyz="1 0 0" />
-    <limit
-      lower="0"
-      upper="0.70"
-      effort="100"
-      velocity="1" />
-    <mimic
-      joint="thumb_joint3"
-      multiplier="0.93"
-      offset="0" />
-  </joint>
-  <link
-    name="thumb_link5">
-    <inertial>
-      <origin
-        xyz="0.00100000000526175 1.07552855510562E-12 4.06912004091708E-12"
-        rpy="0 0 0" />
-      <mass
-        value="1.5707963267949E-06" />
-      <inertia
-        ixx="1.96349540849362E-13"
-        ixy="-1.3252863207713E-28"
-        ixz="1.71651650976E-29"
-        iyy="6.21773546022981E-13"
-        iyz="1.87115198287056E-29"
-        izz="6.21773546022981E-13" />
-    </inertial>
-    <visual>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/thumb_link5.STL" />
-      </geometry>
-      <material
-        name="">
-        <color
-          rgba="1 1 1 1" />
-      </material>
-    </visual>
-    <collision>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/thumb_link5.STL" />
-      </geometry>
-    </collision>
-  </link>
-  <joint
-    name="thumb_joint5"
-    type="fixed">
-    <origin
-      xyz="0.0023001 0.037723 0"
-      rpy="0.25839 0 3.1416" />
-    <parent
-      link="thumb_link4" />
-    <child
-      link="thumb_link5" />
-    <axis
-      xyz="0 0 0" />
-    <limit
-      lower="0"
-      upper="1.57"
-      effort="100"
-      velocity="1" />
-  </joint>
-  <link
-    name="index_link0">
-    <inertial>
-      <origin
-        xyz="-0.014515 -1.5021E-05 0.00937"
-        rpy="0 0 0" />
-      <mass
-        value="0.0041283" />
-      <inertia 
-        ixx="2.4382E-07"
-        ixy="4.421E-10"
-        ixz="7.1095E-09"
-        iyy="3.8339E-07"
-        iyz="4.7767E-10"
-        izz="3.2933E-07" />
-    </inertial>
-    <visual>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/index_link0.STL" />
+          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/meshes/hand_base_link.STL" />
       </geometry>
       <material
         name="">
@@ -436,43 +40,83 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/index_link0.STL" />
+          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/meshes/hand_base_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <link
+    name="thumb_metacarpals_base1">
+    <inertial>
+      <origin
+        xyz="0.0284774593036823 -0.00319295610820959 0.000288698025133524"
+        rpy="0 0 0" />
+      <mass
+        value="0.0084581719416891" />
+      <inertia
+        ixx="1.40261950876138E-06"
+        ixy="1.18207329998214E-07"
+        ixz="-1.77710409325651E-08"
+        iyy="9.82563824235415E-07"
+        iyz="-6.88503841796069E-08"
+        izz="7.36195207923163E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/meshes/thumb_metacarpals_base1.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0 0 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/meshes/thumb_metacarpals_base1.STL" />
       </geometry>
     </collision>
   </link>
   <joint
-    name="index_joint0"
+    name="thumb_cmc_roll"
     type="revolute">
     <origin
-      xyz="0.011645 0.02293 0.12973"
+      xyz="-0.013419 0.012551 0.060602"
       rpy="0 0 0" />
     <parent
       link="base_link" />
     <child
-      link="index_link0" />
+      link="thumb_metacarpals_base1" />
     <axis
-      xyz="1 0 0" />
+      xyz="0.99996 0 -0.0087265" />
     <limit
-      lower="-0.26"
-      upper="0"
+      lower="0"
+      upper="1.1339"
       effort="100"
       velocity="1" />
   </joint>
   <link
-    name="index_link1">
+    name="thumb_metacarpals_base2">
     <inertial>
       <origin
-        xyz="-0.00432247232001909 -0.00844417414022723 0.0189705878437098"
+        xyz="0.00215248483593253 0.00687960824638228 -0.00178648738539141"
         rpy="0 0 0" />
       <mass
-        value="0.00319123709813218" />
+        value="0.00582710536801184" />
       <inertia
-        ixx="2.76997524324701E-07"
-        ixy="-4.75665918769924E-10"
-        ixz="4.51629535610329E-08"
-        iyy="2.67798032737403E-07"
-        iyz="-1.30115974563888E-09"
-        izz="1.52293936956542E-07" />
+        ixx="3.1580508435925E-07"
+        ixy="-1.2523312776122E-08"
+        ixz="7.34627751822501E-09"
+        iyy="2.74551538715439E-07"
+        iyz="-1.11420623852877E-08"
+        izz="1.7708647486189E-07" />
     </inertial>
     <visual>
       <origin
@@ -480,12 +124,12 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/index_link1.STL" />
+          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/meshes/thumb_metacarpals_base2.STL" />
       </geometry>
       <material
         name="">
         <color
-          rgba="0.792156862745098 0.819607843137255 0.92156862745098 1" />
+          rgba="0.898039215686275 0.917647058823529 0.929411764705882 1" />
       </material>
     </visual>
     <collision>
@@ -494,47 +138,101 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/index_link1.STL" />
+          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/meshes/thumb_metacarpals_base2.STL" />
       </geometry>
     </collision>
   </link>
   <joint
-    name="index_joint1"
+    name="thumb_cmc_yaw"
     type="revolute">
     <origin
-      xyz="-0.012765 0.0085 0.017575"
+      xyz="0.035797 -0.00065879 0.00045944"
       rpy="0 0 0" />
     <parent
-      link="index_link0" />
+      link="thumb_metacarpals_base1" />
     <child
-      link="index_link1" />
+      link="thumb_metacarpals_base2" />
+    <axis
+      xyz="0.008517 -0.21782 -0.97595" />
+    <limit
+      lower="0"
+      upper="1.9189"
+      effort="100"
+      velocity="0" />
+  </joint>
+  <link
+    name="thumb_metacarpals">
+    <inertial>
+      <origin
+        xyz="0.00183661834550107 -2.80742940476572E-06 0.0269905020099197"
+        rpy="0 0 0" />
+      <mass
+        value="0.0152011697874328" />
+      <inertia
+        ixx="2.95370119498705E-06"
+        ixy="5.98576599418973E-11"
+        ixz="1.58078022444628E-07"
+        iyy="3.84770651487058E-06"
+        iyz="4.18316149481869E-10"
+        izz="1.32007495243356E-06" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/meshes/thumb_metacarpals.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.592156862745098 0.666666666666667 0.682352941176471 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/meshes/thumb_metacarpals.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="thumb_cmc_pitch"
+    type="revolute">
+    <origin
+      xyz="0.0046051 0.014383 -0.0051478"
+      rpy="0.16356 -1.1191 -2.0038" />
+    <parent
+      link="thumb_metacarpals_base2" />
+    <child
+      link="thumb_metacarpals" />
     <axis
       xyz="0 1 0" />
     <limit
       lower="0"
-      upper="1.41"
+      upper="0.5146"
       effort="100"
       velocity="1" />
-    <mimic
-      joint="index_joint2"
-      multiplier="0.87"
-      offset="0" />
   </joint>
   <link
-    name="index_link2">
+    name="thumb_proximal">
     <inertial>
       <origin
-        xyz="-0.00408694309503346 -0.00578281402047944 0.0108961111205681"
+        xyz="0.00159270226880857 -4.4335770623613E-06 0.0151573535592338"
         rpy="0 0 0" />
       <mass
-        value="0.00326733282871511" />
+        value="0.00662230120907192" />
       <inertia
-        ixx="2.63892681344783E-07"
-        ixy="2.9016125570153E-09"
-        ixz="6.9200550734688E-08"
-        iyy="2.61211566456398E-07"
-        iyz="-4.36347233470761E-09"
-        izz="1.55471446372249E-07" />
+        ixx="1.01526965693255E-06"
+        ixy="-3.40889077339227E-12"
+        ixz="4.4224333375416E-08"
+        iyy="9.10433196570128E-07"
+        iyz="2.59867251981586E-11"
+        izz="4.4746314468008E-07" />
     </inertial>
     <visual>
       <origin
@@ -542,12 +240,12 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/index_link2.STL" />
+          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/meshes/thumb_proximal.STL" />
       </geometry>
       <material
         name="">
         <color
-          rgba="1 1 1 1" />
+          rgba="0.6 0.6 0.6 1" />
       </material>
     </visual>
     <collision>
@@ -556,43 +254,42 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/index_link2.STL" />
+          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/meshes/thumb_proximal.STL" />
       </geometry>
     </collision>
   </link>
   <joint
-    name="index_joint2"
+    name="thumb_mcp"
     type="revolute">
     <origin
-      xyz="-0.0051959 -0.0031156 0.033276"
+      xyz="0.0061722 0 0.047968"
       rpy="0 0 0" />
     <parent
-      link="index_link1" />
+      link="thumb_metacarpals" />
     <child
-      link="index_link2" />
+      link="thumb_proximal" />
     <axis
       xyz="0 1 0" />
     <limit
       lower="0"
-      upper="1.62"
+      upper="0.7152"
       effort="100"
-      velocity="1" />
-  </joint>
+      velocity="1" /></joint>
   <link
-    name="index_link3">
+    name="thumb_distal">
     <inertial>
       <origin
-        xyz="-0.00570746543695844 -0.00522638486492838 0.0156851704477379"
+        xyz="-0.00138919652929166 1.66654390589688E-06 0.0115790399688877"
         rpy="0 0 0" />
       <mass
-        value="0.00411559735315039" />
+        value="0.00512933613321634" />
       <inertia
-        ixx="2.18110169861399E-07"
-        ixy="8.95480276339922E-10"
-        ixz="1.00270346535737E-07"
-        iyy="2.55979481772876E-07"
-        iyz="-1.70868473739508E-09"
-        izz="1.9277583364547E-07" />
+        ixx="3.30969722600772E-07"
+        ixy="-3.44780214263253E-10"
+        ixz="1.04733139974397E-07"
+        iyy="3.23809589950991E-07"
+        iyz="-8.21573772773073E-11"
+        izz="2.489052525811E-07" />
     </inertial>
     <visual>
       <origin
@@ -600,12 +297,12 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/index_link3.STL" />
+          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/meshes/thumb_distal.STL" />
       </geometry>
       <material
         name="">
         <color
-          rgba="1 1 1 1" />
+          rgba="0.6 0.4 0.2 1" />
       </material>
     </visual>
     <collision>
@@ -614,47 +311,42 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/index_link3.STL" />
+          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/meshes/thumb_distal.STL" />
       </geometry>
     </collision>
   </link>
   <joint
-    name="index_joint3"
+    name="thumb_ip"
     type="revolute">
     <origin
-      xyz="-0.0094663 -5.4404E-05 0.024474"
+      xyz="-0.00017064 0 0.038665"
       rpy="0 0 0" />
     <parent
-      link="index_link2" />
+      link="thumb_proximal" />
     <child
-      link="index_link3" />
+      link="thumb_distal" />
     <axis
       xyz="0 1 0" />
     <limit
       lower="0"
-      upper="0.96"
+      upper="0.7763"
       effort="100"
-      velocity="1" />
-    <mimic
-      joint="index_joint2"
-      multiplier="0.59"
-      offset="0" />
-  </joint>
+      velocity="1" /></joint>
   <link
-    name="index_link4">
+    name="index_metacarpals">
     <inertial>
       <origin
-        xyz="-1.38777878078145E-17 -0.001 -2.08166817117217E-15"
+        xyz="-0.000473392019250098 -6.96702861594997E-07 0.00909067743061448"
         rpy="0 0 0" />
       <mass
-        value="1.5707963267949E-06" />
+        value="0.00903700347459462" />
       <inertia
-        ixx="6.21773546022981E-13"
-        ixy="1.34065354968513E-29"
-        ixz="3.41939246070685E-38"
-        iyy="1.96349540849362E-13"
-        iyz="-9.09941733577623E-25"
-        izz="6.21773546022981E-13" />
+        ixx="4.90035722472611E-07"
+        ixy="3.89143802263231E-11"
+        ixz="-2.78580197566548E-08"
+        iyy="7.37380420538667E-07"
+        iyz="6.37050140815271E-11"
+        izz="5.52381285093451E-07" />
     </inertial>
     <visual>
       <origin
@@ -662,12 +354,12 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/index_link4.STL" />
+          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/meshes/index_metacarpals.STL" />
       </geometry>
       <material
         name="">
         <color
-          rgba="1 1 1 1" />
+          rgba="0.898039215686275 0.917647058823529 0.929411764705882 1" />
       </material>
     </visual>
     <collision>
@@ -676,105 +368,101 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/index_link4.STL" />
+          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/meshes/index_metacarpals.STL" />
       </geometry>
     </collision>
   </link>
   <joint
-    name="index_joint4"
-    type="fixed">
-    <origin
-      xyz="-0.014222 -0.00417 0.034954"
-      rpy="0 0 0" />
-    <parent
-      link="index_link3" />
-    <child
-      link="index_link4" />
-    <axis
-      xyz="0 0 0" />
-    <limit
-      lower="0"
-      upper="1.57"
-      effort="100"
-      velocity="1" />
-  </joint>
-  <link
-    name="middle_link0">
-    <inertial>
-      <origin
-        xyz="-0.0043225 -0.0084442 0.018971"
-        rpy="0 0 0" />
-      <mass
-        value="0.0031912" />
-      <inertia
-        ixx="2.77E-07"
-        ixy="-4.7567E-10"
-        ixz="4.5163E-08"
-        iyy="2.678E-07"
-        iyz="-1.3012E-09"
-        izz="1.5229E-07" />
-    </inertial>
-    <visual>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/middle_link0.STL" />
-      </geometry>
-      <material
-        name="">
-        <color
-          rgba="0.79216 0.81961 0.92157 1" />
-      </material>
-    </visual>
-    <collision>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/middle_link0.STL" />
-      </geometry>
-    </collision>
-  </link>
-  <joint
-    name="middle_joint0"
+    name="index_mcp_roll"
     type="revolute">
     <origin
-      xyz="-0.0031059 0.01243 0.1523"
+      xyz="-0.0021643 0.026654 0.13253"
       rpy="0 0 0" />
     <parent
       link="base_link" />
     <child
-      link="middle_link0" />
+      link="index_metacarpals" />
+    <axis
+      xyz="-0.99996 0 0.0087265" />
+    <limit
+      lower="0"
+      upper="0.2181"
+      effort="100"
+      velocity="1" />
+  </joint>
+  <link
+    name="index_proximal">
+    <inertial>
+      <origin
+        xyz="-0.000221409784741484 1.17214413283134E-06 0.0104801609243648"
+        rpy="0 0 0" />
+      <mass
+        value="0.00654982479821771" />
+      <inertia
+        ixx="4.43447817415824E-07"
+        ixy="-2.69774925527114E-12"
+        ixz="2.71645765576885E-08"
+        iyy="4.58697755319572E-07"
+        iyz="-8.52649515921746E-11"
+        izz="1.7465947341041E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/meshes/index_proximal.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.647058823529412 0.517647058823529 0 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/meshes/index_proximal.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="index_mcp_pitch"
+    type="revolute">
+    <origin
+      xyz="0.0020763 0 0.015294"
+      rpy="0 0 0" />
+    <parent
+      link="index_metacarpals" />
+    <child
+      link="index_proximal" />
     <axis
       xyz="0 1 0" />
     <limit
       lower="0"
-      upper="1.41"
+      upper="1.3607"
       effort="100"
       velocity="1" />
-    <mimic
-      joint="middle_joint1"
-      multiplier="0.87"
-      offset="0" />
   </joint>
   <link
-    name="middle_link1">
+    name="index_middle">
     <inertial>
       <origin
-        xyz="-0.00408694309503133 -0.00578281402048103 0.0108961111205646"
+        xyz="-0.00259932519148708 -2.09526073980532E-06 0.0110174765184068"
         rpy="0 0 0" />
       <mass
-        value="0.00326733282871515" />
+        value="0.00283043635595588" />
       <inertia
-        ixx="2.63892681344793E-07"
-        ixy="2.90161255700824E-09"
-        ixz="6.92005507345333E-08"
-        iyy="2.61211566456506E-07"
-        iyz="-4.36347233471317E-09"
-        izz="1.55471446372348E-07" />
+        ixx="2.60328472325947E-07"
+        ixy="5.7907596345584E-11"
+        ixz="4.11787064047029E-08"
+        iyy="2.33077669786127E-07"
+        iyz="-2.91977981203693E-11"
+        izz="1.27252395425434E-07" />
     </inertial>
     <visual>
       <origin
@@ -782,12 +470,12 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/middle_link1.STL" />
+          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/meshes/index_middle.STL" />
       </geometry>
       <material
         name="">
         <color
-          rgba="1 1 1 1" />
+          rgba="0 0.6 1 1" />
       </material>
     </visual>
     <collision>
@@ -796,43 +484,42 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/middle_link1.STL" />
+          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/meshes/index_middle.STL" />
       </geometry>
     </collision>
   </link>
   <joint
-    name="middle_joint1"
+    name="index_pip"
     type="revolute">
     <origin
-      xyz="-0.0051959 -0.0031156 0.033276"
+      xyz="-0.0013807 0 0.035624"
       rpy="0 0 0" />
     <parent
-      link="middle_link0" />
+      link="index_proximal" />
     <child
-      link="middle_link1" />
+      link="index_middle" />
     <axis
       xyz="0 1 0" />
     <limit
       lower="0"
-      upper="1.62"
+      upper="1.8317"
       effort="100"
-      velocity="1" />
-  </joint>
+      velocity="1" /></joint>
   <link
-    name="middle_link2">
+    name="index_distal">
     <inertial>
       <origin
-        xyz="-0.00570746543616099 -0.00522638486491383 0.0156851704480417"
+        xyz="-0.000710605319534495 5.23484329792434E-06 0.0121456668819466"
         rpy="0 0 0" />
       <mass
-        value="0.00411559735315162" />
+        value="0.00314458657125681" />
       <inertia
-        ixx="2.1811016986198E-07"
-        ixy="8.95480276359517E-10"
-        ixz="1.00270346535758E-07"
-        iyy="2.5597948177287E-07"
-        iyz="-1.70868473741131E-09"
-        izz="1.92775833646044E-07" />
+        ixx="1.63322109883219E-07"
+        ixy="1.96094345230889E-11"
+        ixz="4.33517104700554E-08"
+        iyy="1.48366110942312E-07"
+        iyz="-2.0277830463002E-10"
+        izz="9.85575309385827E-08" />
     </inertial>
     <visual>
       <origin
@@ -840,12 +527,12 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/middle_link2.STL" />
+          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/meshes/index_distal.STL" />
       </geometry>
       <material
         name="">
         <color
-          rgba="1 1 1 1" />
+          rgba="0 0.6 1 1" />
       </material>
     </visual>
     <collision>
@@ -854,47 +541,42 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/middle_link2.STL" />
+          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/meshes/index_distal.STL" />
       </geometry>
     </collision>
   </link>
   <joint
-    name="middle_joint2"
+    name="index_dip"
     type="revolute">
     <origin
-      xyz="-0.0094663 -5.4404E-05 0.024474"
+      xyz="-0.0054686 0 0.025665"
       rpy="0 0 0" />
     <parent
-      link="middle_link1" />
+      link="index_middle" />
     <child
-      link="middle_link2" />
+      link="index_distal" />
     <axis
       xyz="0 1 0" />
     <limit
       lower="0"
-      upper="0.96"
+      upper="1.8317"
       effort="100"
-      velocity="1" />
-    <mimic
-      joint="middle_joint1"
-      multiplier="0.59"
-      offset="0" />
-  </joint>
+      velocity="1" /></joint>
   <link
-    name="middle_link3">
+    name="middle_proximal">
     <inertial>
       <origin
-        xyz="-5.51345344379506E-10 -0.000999999999999864 -2.16493489801906E-15"
+        xyz="-0.000226219980586555 1.17216483217115E-06 0.0104800581470382"
         rpy="0 0 0" />
       <mass
-        value="1.5707963267949E-06" />
+        value="0.00654982478226948" />
       <inertia
-        ixx="6.21773546022851E-13"
-        ixy="-2.34555541864605E-19"
-        ixz="-5.01692097785736E-31"
-        iyy="1.96349540849491E-13"
-        iyz="-9.09941733577684E-25"
-        izz="6.2177354602298E-13" />
+        ixx="4.43422823045881E-07"
+        ixy="-2.65801609336249E-12"
+        ixz="2.72879331079687E-08"
+        iyy="4.58697754707372E-07"
+        iyz="-8.52654749041276E-11"
+        izz="1.746844667607E-07" />
     </inertial>
     <visual>
       <origin
@@ -902,12 +584,12 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/middle_link3.STL" />
+          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/meshes/middle_proximal.STL" />
       </geometry>
       <material
         name="">
         <color
-          rgba="1 1 1 1" />
+          rgba="0.647058823529412 0.517647058823529 0 1" />
       </material>
     </visual>
     <collision>
@@ -916,163 +598,43 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/middle_link3.STL" />
+          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/meshes/middle_proximal.STL" />
       </geometry>
     </collision>
   </link>
   <joint
-    name="middle_joint3"
-    type="fixed">
-    <origin
-      xyz="-0.014222 -0.00417 0.034954"
-      rpy="0 0 0" />
-    <parent
-      link="middle_link2" />
-    <child
-      link="middle_link3" />
-    <axis
-      xyz="0 0 0" />
-    <limit
-      lower="0"
-      upper="1.57"
-      effort="100"
-      velocity="1" />
-  </joint>
-  <link
-    name="ring_link0">
-    <inertial>
-      <origin
-        xyz="-0.014515 -1.5022E-05 0.00937"
-        rpy="0 0 0" />
-      <mass
-        value="0.0041283" />
-      <inertia
-        ixx="2.4382E-07"
-        ixy="4.4209E-10"
-        ixz="7.1095E-09"
-        iyy="3.8339E-07"
-        iyz="4.7768E-10"
-        izz="3.2933E-07" />
-    </inertial>
-    <visual>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/ring_link0.STL" />
-      </geometry>
-      <material
-        name="">
-        <color
-          rgba="1 0.6 0 1" />
-      </material>
-    </visual>
-    <collision>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/ring_link0.STL" />
-      </geometry>
-    </collision>
-  </link>
-  <joint
-    name="ring_joint0"
+    name="middle_mcp_pitch"
     type="revolute">
     <origin
-      xyz="0.011645 -0.01507 0.12973"
+      xyz="-0.0021316 0.0076542 0.15281"
       rpy="0 0 0" />
     <parent
       link="base_link" />
     <child
-      link="ring_link0" />
-    <axis
-      xyz="1 0 0" />
-    <limit
-      lower="0"
-      upper="0.13"
-      effort="100"
-      velocity="1" />
-  </joint>
-  <link
-    name="ring_link1">
-    <inertial>
-      <origin
-        xyz="-0.00432247232001906 -0.00844417414022712 0.0189705878437098"
-        rpy="0 0 0" />
-      <mass
-        value="0.00319123709813222" />
-      <inertia
-        ixx="2.76997524324732E-07"
-        ixy="-4.75665918770635E-10"
-        ixz="4.51629535611139E-08"
-        iyy="2.67798032737431E-07"
-        iyz="-1.3011597456376E-09"
-        izz="1.52293936956541E-07" />
-    </inertial>
-    <visual>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/ring_link1.STL" />
-      </geometry>
-      <material
-        name="">
-        <color
-          rgba="0.792156862745098 0.819607843137255 0.92156862745098 1" />
-      </material>
-    </visual>
-    <collision>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/ring_link1.STL" />
-      </geometry>
-    </collision>
-  </link>
-  <joint
-    name="ring_joint1"
-    type="revolute">
-    <origin
-      xyz="-0.012765 0.0085 0.017575"
-      rpy="0 0 0" />
-    <parent
-      link="ring_link0" />
-    <child
-      link="ring_link1" />
+      link="middle_proximal" />
     <axis
       xyz="0 1 0" />
     <limit
       lower="0"
-      upper="1.41"
+      upper="1.3607"
       effort="100"
       velocity="1" />
-    <mimic
-      joint="ring_joint2"
-      multiplier="0.87"
-      offset="0" />
   </joint>
   <link
-    name="ring_link2">
+    name="middle_middle">
     <inertial>
       <origin
-        xyz="-0.0040869463908097 -0.00578281169122234 0.0108961111205687"
+        xyz="-0.00261699473119732 -2.09526685195343E-06 0.0110132928110042"
         rpy="0 0 0" />
       <mass
-        value="0.00326733282871513" />
+        value="0.00283043635504843" />
       <inertia
-        ixx="2.63892684651985E-07"
-        ixy="2.90161102896813E-09"
-        ixz="6.92005482484039E-08"
-        iyy="2.61211563148159E-07"
-        iyz="-4.36351177392508E-09"
-        izz="1.5547144637163E-07" />
+        ixx="2.60196021834948E-07"
+        ixy="5.79547865424082E-11"
+        ixz="4.1391958359388E-08"
+        iyy="2.33077669434872E-07"
+        iyz="-2.91048412607941E-11"
+        izz="1.27384845266404E-07" />
     </inertial>
     <visual>
       <origin
@@ -1080,12 +642,12 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/ring_link2.STL" />
+          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/meshes/middle_middle.STL" />
       </geometry>
       <material
         name="">
         <color
-          rgba="0.490196078431373 0.490196078431373 0.490196078431373 1" />
+          rgba="0 0.6 1 1" />
       </material>
     </visual>
     <collision>
@@ -1094,43 +656,42 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/ring_link2.STL" />
+          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/meshes/middle_middle.STL" />
       </geometry>
     </collision>
   </link>
   <joint
-    name="ring_joint2"
+    name="middle_pip"
     type="revolute">
     <origin
-      xyz="-0.0051959 -0.0031156 0.033276"
+      xyz="-0.001397 0 0.035623"
       rpy="0 0 0" />
     <parent
-      link="ring_link1" />
+      link="middle_proximal" />
     <child
-      link="ring_link2" />
+      link="middle_middle" />
     <axis
       xyz="0 1 0" />
     <limit
       lower="0"
-      upper="1.62"
+      upper="1.8317"
       effort="100"
-      velocity="1" />
-  </joint>
+      velocity="1" /></joint>
   <link
-    name="ring_link3">
+    name="middle_distal">
     <inertial>
       <origin
-        xyz="-0.00570746543695887 -0.00522638486492792 0.0156851704477379"
+        xyz="-0.000728492686368068 5.23463091207845E-06 0.0121446078355904"
         rpy="0 0 0" />
       <mass
-        value="0.0041155973531504" />
+        value="0.0031445865911477" />
       <inertia
-        ixx="2.18110169861372E-07"
-        ixy="8.95480276344758E-10"
-        ixz="1.00270346535738E-07"
-        iyy="2.55979481772875E-07"
-        iyz="-1.70868473740296E-09"
-        izz="1.92775833645441E-07" />
+        ixx="1.6319430020531E-07"
+        ixy="1.99064061423831E-11"
+        ixz="4.34469141575623E-08"
+        iyy="1.48366133401933E-07"
+        iyz="-2.0274172110168E-10"
+        izz="9.86853634492536E-08" />
     </inertial>
     <visual>
       <origin
@@ -1138,12 +699,12 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/ring_link3.STL" />
+          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/meshes/middle_distal.STL" />
       </geometry>
       <material
         name="">
         <color
-          rgba="1 1 1 1" />
+          rgba="0 0.6 1 1" />
       </material>
     </visual>
     <collision>
@@ -1152,47 +713,42 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/ring_link3.STL" />
+          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/meshes/middle_distal.STL" />
       </geometry>
     </collision>
   </link>
   <joint
-    name="ring_joint3"
+    name="middle_dip"
     type="revolute">
     <origin
-      xyz="-0.0094663 -5.4399E-05 0.024474"
+      xyz="-0.0055098 0 0.025656"
       rpy="0 0 0" />
     <parent
-      link="ring_link2" />
+      link="middle_middle" />
     <child
-      link="ring_link3" />
+      link="middle_distal" />
     <axis
       xyz="0 1 0" />
     <limit
       lower="0"
-      upper="0.96"
+      upper="0.628"
       effort="100"
-      velocity="1" />
-    <mimic
-      joint="ring_joint2"
-      multiplier="0.59"
-      offset="0" />
-  </joint>
+      velocity="1" /></joint>
   <link
-    name="ring_link4">
+    name="ring_metacarpals">
     <inertial>
       <origin
-        xyz="-5.69927896543199E-10 -0.000999999999999824 -2.13717932240343E-15"
+        xyz="-0.000473392019250147 -6.96702861586324E-07 0.00909067743061451"
         rpy="0 0 0" />
       <mass
-        value="1.5707963267949E-06" />
+        value="0.00903700347459463" />
       <inertia
-        ixx="6.21773546022842E-13"
-        ixy="-2.42460991756798E-19"
-        ixz="-5.18606157063936E-31"
-        iyy="1.963495408495E-13"
-        iyz="-9.0995045324887E-25"
-        izz="6.2177354602298E-13" />
+        ixx="4.90035722472612E-07"
+        ixy="3.89143802227228E-11"
+        ixz="-2.78580197566549E-08"
+        iyy="7.37380420538669E-07"
+        iyz="6.37050140810733E-11"
+        izz="5.52381285093452E-07" />
     </inertial>
     <visual>
       <origin
@@ -1200,12 +756,12 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/ring_link4.STL" />
+          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/meshes/ring_metacarpals.STL" />
       </geometry>
       <material
         name="">
         <color
-          rgba="1 1 1 1" />
+          rgba="0.898039215686275 0.917647058823529 0.929411764705882 1" />
       </material>
     </visual>
     <collision>
@@ -1214,101 +770,43 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/ring_link4.STL" />
+          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/meshes/ring_metacarpals.STL" />
       </geometry>
     </collision>
   </link>
   <joint
-    name="ring_joint4"
-    type="fixed">
-    <origin
-      xyz="-0.014222 -0.00417 0.034954"
-      rpy="0 0 0" />
-    <parent
-      link="ring_link3" />
-    <child
-      link="ring_link4" />
-    <axis
-      xyz="0 0 0" />
-    <limit
-      lower="0"
-      upper="1.57"
-      effort="100"
-      velocity="1" />
-  </joint>
-  <link
-    name="little_link0">
-    <inertial>
-      <origin
-        xyz="-0.014515 -1.5014E-05 0.00937"
-        rpy="0 0 0" />
-      <mass
-        value="0.0041283" />
-      <inertia
-        ixx="2.4382E-07"
-        ixy="4.4217E-10"
-        ixz="7.1095E-09"
-        iyy="3.8339E-07"
-        iyz="4.7767E-10"
-        izz="3.2933E-07" />
-    </inertial>
-    <visual>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/little_link0.STL" />
-      </geometry>
-      <material
-        name="">
-        <color
-          rgba="1 0.6 0 1" />
-      </material>
-    </visual>
-    <collision>
-      <origin
-        xyz="0 0 0"
-        rpy="0 0 0" />
-      <geometry>
-        <mesh
-          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/little_link0.STL" />
-      </geometry>
-    </collision>
-  </link>
-  <joint
-    name="little_joint0"
+    name="ring_mcp_roll"
     type="revolute">
     <origin
-      xyz="0.013645 -0.03407 0.12473"
+      xyz="-0.0021643 -0.011346 0.13253"
       rpy="0 0 0" />
     <parent
       link="base_link" />
     <child
-      link="little_link0" />
+      link="ring_metacarpals" />
     <axis
-      xyz="1 0 0" />
+      xyz="0.99996 0 0.0087265" />
     <limit
       lower="0"
-      upper="0.26"
+      upper="0.2181"
       effort="100"
       velocity="1" />
   </joint>
   <link
-    name="little_link1">
+    name="ring_proximal">
     <inertial>
       <origin
-        xyz="-0.00432247716406226 -0.00844417166061773 0.0189705878437108"
+        xyz="-0.000221412177759527 1.17116513872681E-06 0.0104801549347171"
         rpy="0 0 0" />
       <mass
-        value="0.00319123709813255" />
+        value="0.00654982867950541" />
       <inertia
-        ixx="2.76997523778965E-07"
-        ixy="-4.75671196107449E-10"
-        ixz="4.51629528146931E-08"
-        iyy="2.67798033283057E-07"
-        iyz="-1.30118565358821E-09"
-        izz="1.52293936956473E-07" />
+        ixx="4.43447863010516E-07"
+        ixy="-2.73227024213763E-12"
+        ixz="2.71645164102371E-08"
+        iyy="4.58697895506594E-07"
+        iyz="-8.52846225435011E-11"
+        izz="1.74659590566364E-07" />
     </inertial>
     <visual>
       <origin
@@ -1316,12 +814,12 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/little_link1.STL" />
+          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/meshes/ring_proximal.STL" />
       </geometry>
       <material
         name="">
         <color
-          rgba="0.490196078431373 0.490196078431373 0.490196078431373 1" />
+          rgba="0.647058823529412 0.517647058823529 0 1" />
       </material>
     </visual>
     <collision>
@@ -1330,47 +828,43 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/little_link1.STL" />
+          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/meshes/ring_proximal.STL" />
       </geometry>
     </collision>
   </link>
   <joint
-    name="little_joint1"
+    name="ring_mcp_pitch"
     type="revolute">
     <origin
-      xyz="-0.012765 0.0085 0.017575"
+      xyz="0.0020763 0 0.015294"
       rpy="0 0 0" />
     <parent
-      link="little_link0" />
+      link="ring_metacarpals" />
     <child
-      link="little_link1" />
+      link="ring_proximal" />
     <axis
       xyz="0 1 0" />
     <limit
       lower="0"
-      upper="1.41"
+      upper="1.3607"
       effort="100"
       velocity="1" />
-    <mimic
-      joint="little_joint2"
-      multiplier="0.87"
-      offset="0" />
   </joint>
   <link
-    name="little_link2">
+    name="ring_middle">
     <inertial>
       <origin
-        xyz="-0.00408694309503385 -0.00578281402047944 0.010896111120568"
+        xyz="-0.00259932539169275 -2.09536925854445E-06 0.0110174765352322"
         rpy="0 0 0" />
       <mass
-        value="0.00326733282871507" />
+        value="0.00283043628669241" />
       <inertia
-        ixx="2.63892681344756E-07"
-        ixy="2.90161255701509E-09"
-        ixz="6.92005507345633E-08"
-        iyy="2.6121156645669E-07"
-        iyz="-4.36347233470534E-09"
-        izz="1.55471446372568E-07" />
+        ixx="2.6032847037415E-07"
+        ixy="5.79104972037516E-11"
+        ixz="4.11787063652271E-08"
+        iyy="2.33077663802866E-07"
+        iyz="-2.91978956610415E-11"
+        izz="1.27252388488073E-07" />
     </inertial>
     <visual>
       <origin
@@ -1378,12 +872,12 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/little_link2.STL" />
+          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/meshes/ring_middle.STL" />
       </geometry>
       <material
         name="">
         <color
-          rgba="1 1 1 1" />
+          rgba="0 0.6 1 1" />
       </material>
     </visual>
     <collision>
@@ -1392,43 +886,42 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/little_link2.STL" />
+          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/meshes/ring_middle.STL" />
       </geometry>
     </collision>
   </link>
   <joint
-    name="little_joint2"
+    name="ring_pip"
     type="revolute">
     <origin
-      xyz="-0.0051959 -0.0031156 0.033276"
+      xyz="-0.0013807 0 0.035624"
       rpy="0 0 0" />
     <parent
-      link="little_link1" />
+      link="ring_proximal" />
     <child
-      link="little_link2" />
+      link="ring_middle" />
     <axis
       xyz="0 1 0" />
     <limit
       lower="0"
-      upper="1.62"
+      upper="1.8317"
       effort="100"
-      velocity="1" />
-  </joint>
+      velocity="1" /></joint>
   <link
-    name="little_link3">
+    name="ring_distal">
     <inertial>
       <origin
-        xyz="-0.0057074684350998 -0.00522638159081092 0.0156851704477379"
+        xyz="-0.000710605070655887 5.23486441320054E-06 0.0121456664241844"
         rpy="0 0 0" />
       <mass
-        value="0.00411559735315041" />
+        value="0.0031445863941225" />
       <inertia
-        ixx="2.18110170888477E-07"
-        ixy="8.95502000264534E-10"
-        ixz="1.00270345555525E-07"
-        iyy="2.55979480745468E-07"
-        iyz="-1.70874225798945E-09"
-        izz="1.9277583364514E-07" />
+        ixx="1.6332208655443E-07"
+        ixy="1.96096284326007E-11"
+        ixz="4.33517042915493E-08"
+        iyy="1.48366090032445E-07"
+        iyz="-2.02778843611257E-10"
+        izz="9.85575241184011E-08" />
     </inertial>
     <visual>
       <origin
@@ -1436,12 +929,12 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/little_link3.STL" />
+          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/meshes/ring_distal.STL" />
       </geometry>
       <material
         name="">
         <color
-          rgba="1 1 1 1" />
+          rgba="0 0.6 1 1" />
       </material>
     </visual>
     <collision>
@@ -1450,47 +943,42 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/little_link3.STL" />
+          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/meshes/ring_distal.STL" />
       </geometry>
     </collision>
   </link>
   <joint
-    name="little_joint3"
+    name="ring_dip"
     type="revolute">
     <origin
-      xyz="-0.0094663 -5.4404E-05 0.024474"
+      xyz="-0.0054686 0 0.025665"
       rpy="0 0 0" />
     <parent
-      link="little_link2" />
+      link="ring_middle" />
     <child
-      link="little_link3" />
+      link="ring_distal" />
     <axis
       xyz="0 1 0" />
     <limit
       lower="0"
-      upper="0.96"
+      upper="0.628"
       effort="100"
-      velocity="1" />
-    <mimic
-      joint="little_joint2"
-      multiplier="0.59"
-      offset="0" />
-  </joint>
+      velocity="1" /></joint>
   <link
-    name="little_link4">
+    name="pinky_metacarpals">
     <inertial>
       <origin
-        xyz="-5.73656622204766E-10 -0.000999999999999841 -2.1094237467878E-15"
+        xyz="-0.000473392019250103 -6.96702861589793E-07 0.00909067743061448"
         rpy="0 0 0" />
       <mass
-        value="1.5707963267949E-06" />
+        value="0.00903700347459465" />
       <inertia
-        ixx="6.21773546022842E-13"
-        ixy="-2.44047297338895E-19"
-        ixz="-5.21995354308923E-31"
-        iyy="1.96349540849502E-13"
-        iyz="-9.09943913494262E-25"
-        izz="6.21773546022982E-13" />
+        ixx="4.90035722472611E-07"
+        ixy="3.89143802264643E-11"
+        ixz="-2.78580197566552E-08"
+        iyy="7.37380420538668E-07"
+        iyz="6.37050140815369E-11"
+        izz="5.52381285093452E-07" />
     </inertial>
     <visual>
       <origin
@@ -1498,12 +986,12 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/little_link4.STL" />
+          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/meshes/pinky_metacarpals.STL" />
       </geometry>
       <material
         name="">
         <color
-          rgba="1 1 1 1" />
+          rgba="0.898039215686275 0.917647058823529 0.929411764705882 1" />
       </material>
     </visual>
     <collision>
@@ -1512,26 +1000,198 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/little_link4.STL" />
+          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/meshes/pinky_metacarpals.STL" />
       </geometry>
     </collision>
   </link>
   <joint
-    name="little_joint4"
-    type="fixed">
+    name="pinky_mcp_roll"
+    type="revolute">
     <origin
-      xyz="-0.014222 -0.00417 0.034954"
+      xyz="-0.00012074 -0.030346 0.12755"
       rpy="0 0 0" />
     <parent
-      link="little_link3" />
+      link="base_link" />
     <child
-      link="little_link4" />
+      link="pinky_metacarpals" />
     <axis
-      xyz="0 0 0" />
+      xyz="0.99996 0 0.0087265" />
     <limit
       lower="0"
-      upper="1.57"
+      upper="0.3489"
       effort="100"
       velocity="1" />
   </joint>
+  <link
+    name="pinky_proximal">
+    <inertial>
+      <origin
+        xyz="-0.000221412258607754 1.17103683876935E-06 0.0104801532987067"
+        rpy="0 0 0" />
+      <mass
+        value="0.00654982918810593" />
+      <inertia
+        ixx="4.43447910769094E-07"
+        ixy="-2.73411126621624E-12"
+        ixz="2.71644852567342E-08"
+        iyy="4.58697939807031E-07"
+        iyz="-8.52970212446317E-11"
+        izz="1.74659590066949E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/meshes/pinky_proximal.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0 0.6 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/meshes/pinky_proximal.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="pinky_mcp_pitch"
+    type="revolute">
+    <origin
+      xyz="0.0020763 0 0.015294"
+      rpy="0 0 0" />
+    <parent
+      link="pinky_metacarpals" />
+    <child
+      link="pinky_proximal" />
+    <axis
+      xyz="0 1 0" />
+    <limit
+      lower="0"
+      upper="1.3607"
+      effort="100"
+      velocity="1" />
+  </joint>
+  <link
+    name="pinky_middle">
+    <inertial>
+      <origin
+        xyz="-0.002599325191487 -2.09526073984695E-06 0.0110174765184069"
+        rpy="0 0 0" />
+      <mass
+        value="0.00283043635595589" />
+      <inertia
+        ixx="2.60328472325978E-07"
+        ixy="5.7907596343404E-11"
+        ixz="4.11787064048009E-08"
+        iyy="2.33077669786026E-07"
+        iyz="-2.91977981214484E-11"
+        izz="1.27252395425297E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/meshes/pinky_middle.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0 0.6 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/meshes/pinky_middle.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="pinky_pip"
+    type="revolute">
+    <origin
+      xyz="-0.0013807 0 0.035624"
+      rpy="0 0 0" />
+    <parent
+      link="pinky_proximal" />
+    <child
+      link="pinky_middle" />
+    <axis
+      xyz="0 1 0" />
+    <limit
+      lower="0"
+      upper="1.8317"
+      effort="100"
+      velocity="1" /></joint>
+  <link
+    name="pinky_distal">
+    <inertial>
+      <origin
+        xyz="-0.000710605211329151 5.23471293070038E-06 0.0121456666744262"
+        rpy="0 0 0" />
+      <mass
+        value="0.0031445864920905" />
+      <inertia
+        ixx="1.63322099233008E-07"
+        ixy="1.96074242691561E-11"
+        ixz="4.33517077122639E-08"
+        iyy="1.48366101127732E-07"
+        iyz="-2.02773897050006E-10"
+        izz="9.85575276143507E-08" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/meshes/pinky_distal.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0 0.6 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://linker_hand_description/urdf/L10/linker_hand_l10_right/meshes/pinky_distal.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="pinky_dip"
+    type="revolute">
+    <origin
+      xyz="-0.0054686 0 0.025665"
+      rpy="0 0 0" />
+    <parent
+      link="pinky_middle" />
+    <child
+      link="pinky_distal" />
+    <axis
+      xyz="0 1 0" />
+    <limit
+      lower="0"
+      upper="0.628"
+      effort="100"
+      velocity="1" /></joint>
 </robot>

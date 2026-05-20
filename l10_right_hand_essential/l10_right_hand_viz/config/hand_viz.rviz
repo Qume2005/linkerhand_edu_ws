@@ -44,127 +44,102 @@ Visualization Manager:
           Show Axes: false
           Show Trail: false
           Value: true
-        index_link0:
+        thumb_metacarpals_base1:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        index_link1:
+        thumb_metacarpals_base2:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        index_link2:
+        thumb_metacarpals:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        index_link3:
+        thumb_proximal:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        index_link4:
+        thumb_distal:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        little_link0:
+        index_metacarpals:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        little_link1:
+        index_proximal:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        little_link2:
+        index_middle:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        little_link3:
+        index_distal:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        little_link4:
+        middle_proximal:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        middle_link0:
+        middle_middle:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        middle_link1:
+        middle_distal:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        middle_link2:
+        ring_metacarpals:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        middle_link3:
+        ring_proximal:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        ring_link0:
+        ring_middle:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        ring_link1:
+        ring_distal:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        ring_link2:
+        pinky_metacarpals:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        ring_link3:
+        pinky_proximal:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        ring_link4:
+        pinky_middle:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        thumb_link0:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        thumb_link1:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        thumb_link2:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        thumb_link3:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        thumb_link4:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        thumb_link5:
+        pinky_distal:
           Alpha: 1
           Show Axes: false
           Show Trail: false

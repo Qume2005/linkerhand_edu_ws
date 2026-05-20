@@ -7,7 +7,7 @@ package_name = 'linker_hand_description'
 # 收集 URDF + STL + XML 文件安装到 share 目录
 model_dir = os.path.join(package_name, 'urdf', 'L10', 'linker_hand_l10_right')
 model_files = (
-    glob(os.path.join(model_dir, '*.STL'))
+    glob(os.path.join(model_dir, 'meshes', '*.STL'))
     + glob(os.path.join(model_dir, '*.urdf'))
     + glob(os.path.join(model_dir, '*.xml'))
 )
@@ -18,10 +18,7 @@ setup(
     packages=find_packages(exclude=['test']),
     package_data={
         package_name: [
-            'urdf.bak/linker_hand_l10_right/*.STL',
-            'urdf.bak/linker_hand_l10_right/*.xml',
-            'urdf.bak/linker_hand_l10_right/*.urdf.bak',
-            'urdf/L10/linker_hand_l10_right/*.STL',
+            'urdf/L10/linker_hand_l10_right/meshes/*.STL',
             'urdf/L10/linker_hand_l10_right/*.urdf',
             'urdf/L10/linker_hand_l10_right/*.xml',
         ],
@@ -30,9 +27,13 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-        # 安装模型文件到 share/<pkg>/urdf/L10/linker_hand_l10_right/
+        # 安装 URDF/XML 到 share/<pkg>/urdf/L10/linker_hand_l10_right/
         (os.path.join('share', package_name, 'urdf', 'L10', 'linker_hand_l10_right'),
-            model_files),
+            glob(os.path.join(model_dir, '*.urdf'))
+            + glob(os.path.join(model_dir, '*.xml'))),
+        # 安装 STL 到 share/<pkg>/urdf/L10/linker_hand_l10_right/meshes/
+        (os.path.join('share', package_name, 'urdf', 'L10', 'linker_hand_l10_right', 'meshes'),
+            glob(os.path.join(model_dir, 'meshes', '*.STL'))),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
