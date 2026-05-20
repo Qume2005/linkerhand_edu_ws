@@ -65,7 +65,7 @@ L10 右手 MuJoCo 物理仿真 ROS2 后端 -- 提供与真实硬件驱动完全�
 
 MuJoCo 模型中每个连杆 (body) 关联若干几何体 (geom)。触觉仿真通过以下步骤建立 geom 到手指的映射：
 
-1. 定义指尖 body 名称：`thumb_link4`, `index_link3`, `middle_link2`, `ring_link3`, `little_link3`
+1. 定义指尖 body 名称：`thumb_distal`, `index_distal`, `middle_distal`, `ring_distal`, `pinky_distal`
 2. 遍历模型所有 geom，检查其所属 body 名称
 3. 匹配时记录 `geom_id -> finger_idx` 映射到 `finger_geom_map`
 
@@ -115,18 +115,18 @@ matrix = [[per_cell] * 6 for _ in range(12)]
 
 | Mimic 关节 | 主关节 | 乘数 | 说明 |
 |-----------|--------|------|------|
-| 2 (thumb_joint2) | 3 | 0.58 | 拇指近端弯曲 |
-| 4 (thumb_joint4) | 3 | 0.93 | 拇指远端弯曲 |
-| 6 (index_joint1) | 7 | 0.87 | 食指近端跟随 |
-| 8 (index_joint3) | 7 | 0.59 | 食指远端跟随 |
-| 9 (middle_joint0) | 10 | 0.87 | 中指近端跟随 |
-| 11 (middle_joint2) | 10 | 0.59 | 中指远端跟随 |
-| 13 (ring_joint1) | 14 | 0.87 | 无名指近端跟随 |
-| 15 (ring_joint3) | 14 | 0.59 | 无名指远端跟随 |
-| 17 (little_joint1) | 18 | 0.87 | 小指近端跟随 |
-| 19 (little_joint3) | 18 | 0.59 | 小指远端跟随 |
+| 3 (thumb_mcp) | 2 (thumb_cmc_pitch) | 1.3898 | 拇指 MCP 跟随 CMC pitch |
+| 4 (thumb_ip) | 2 (thumb_cmc_pitch) | 1.508 | 拇指 IP 跟随 CMC pitch |
+| 7 (index_pip) | 6 (index_mcp_pitch) | 1.3462 | 食指 PIP 跟随 MCP pitch |
+| 8 (index_dip) | 6 (index_mcp_pitch) | 0.4616 | 食指 DIP 跟随 MCP pitch |
+| 10 (middle_pip) | 9 (middle_mcp_pitch) | 1.3462 | 中指 PIP 跟随 MCP pitch |
+| 11 (middle_dip) | 9 (middle_mcp_pitch) | 0.4616 | 中指 DIP 跟随 MCP pitch |
+| 14 (ring_pip) | 13 (ring_mcp_pitch) | 1.3462 | 无名指 PIP 跟随 MCP pitch |
+| 15 (ring_dip) | 13 (ring_mcp_pitch) | 0.4616 | 无名指 DIP 跟随 MCP pitch |
+| 18 (pinky_pip) | 17 (pinky_mcp_pitch) | 1.3462 | 小指 PIP 跟随 MCP pitch |
+| 19 (pinky_dip) | 17 (pinky_mcp_pitch) | 0.4616 | 小指 DIP 跟随 MCP pitch |
 
-乘数 0.87 / 0.59 的模式在四指中保持一致：近端关节跟随幅度约 87%，远端约 59%。
+四指模式一致：PIP = MCP_pitch × 1.3462，DIP = MCP_pitch × 0.4616。拇指 MCP/IP 分别以 1.3898/1.508 跟随 cmc_pitch。
 
 ## 构建
 

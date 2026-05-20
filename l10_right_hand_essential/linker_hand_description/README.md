@@ -98,12 +98,13 @@ linker_hand_description/
         │   └── linker_hand_l10_right/
         │       ├── linker_hand_l10_right.xml    # MuJoCo 模型定义
         │       ├── linker_hand_l10_right.urdf   # URDF 模型定义
-        │       ├── base_link.STL                # 手掌基座网格
-        │       ├── thumb_link0~5.STL            # 拇指各连杆网格
-        │       ├── index_link0~4.STL            # 食指各连杆网格
-        │       ├── middle_link0~3.STL           # 中指各连杆网格
-        │       ├── ring_link0~4.STL             # 无名指各连杆网格
-        │       └── little_link0~4.STL           # 小指各连杆网格
+        │       └── meshes/                      # STL 网格文件目录
+        │           ├── hand_base_link.STL       # 手掌基座
+        │           ├── thumb_*.STL              # 拇指 5 个连杆
+        │           ├── index_*.STL              # 食指 4 个连杆
+        │           ├── middle_*.STL             # 中指 3 个连杆
+        │           ├── ring_*.STL               # 无名指 4 个连杆
+        │           └── pinky_*.STL              # 小指 4 个连杆
         ├── L20/ ...                             # L20 型号资产
         ├── L21/ ...                             # L21 型号资产
         ├── L6/ ...                              # L6 型号资产

@@ -53,13 +53,13 @@ launch 文件同时启动 4 个节点，不使用 TimerAction 延迟。这是因
 `hand_viz_node.py` 中定义了 20 个 MuJoCo 关节名，按 qpos 索引顺序排列:
 
 ```
-索引  关节名              对应手指
-────  ──────────────────  ────────
-0-4   thumb_joint0-4      拇指 (5 个关节)
-5-8   index_joint0-3      食指 (4 个关节)
-9-11  middle_joint0-2     中指 (3 个关节)
-12-15 ring_joint0-3       无名指 (4 个关节)
-16-19 little_joint0-3     小指 (4 个关节)
+索引  关节名               对应手指
+────  ───────────────────  ────────
+0-4   thumb_cmc_roll等     拇指 (5 个关节: cmc_roll, cmc_yaw, cmc_pitch, mcp, ip)
+5-8   index_mcp_roll等     食指 (4 个关节: mcp_roll, mcp_pitch, pip, dip)
+9-11  middle_mcp_pitch等   中指 (3 个关节: mcp_pitch, pip, dip)
+12-15 ring_mcp_roll等      无名指 (4 个关节: mcp_roll, mcp_pitch, pip, dip)
+16-19 pinky_mcp_roll等     小指 (4 个关节: mcp_roll, mcp_pitch, pip, dip)
 ```
 
 这些名称与 URDF 文件中的关节名完全一致，确保 `robot_state_publisher` 能正确匹配。
