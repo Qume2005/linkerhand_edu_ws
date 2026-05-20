@@ -47,23 +47,23 @@ L10_JOINT_MAP = {
 # URDF mimic 关系: mimic_joint = primary_joint * multiplier
 # 键为 mimic 关节的 MuJoCo 索引，值为 (主关节 MuJoCo 索引, 乘数)
 MIMIC_JOINTS = {
-    2:  (3,  0.58),   # thumb_joint2 = thumb_joint3 * 0.58
-    4:  (3,  0.93),   # thumb_joint4 = thumb_joint3 * 0.93
-    6:  (7,  0.87),   # index_joint1 = index_joint2 * 0.87
-    8:  (7,  0.59),   # index_joint3 = index_joint2 * 0.59
-    9:  (10, 0.87),   # middle_joint0 = middle_joint1 * 0.87
-    11: (10, 0.59),   # middle_joint2 = middle_joint1 * 0.59
-    13: (14, 0.87),   # ring_joint1 = ring_joint2 * 0.87
-    15: (14, 0.59),   # ring_joint3 = ring_joint2 * 0.59
-    17: (18, 0.87),   # little_joint1 = little_joint2 * 0.87
-    19: (18, 0.59),   # little_joint3 = little_joint2 * 0.59
+    3:  (2,  1.3898),   # thumb_mcp = thumb_cmc_pitch * 1.3898
+    4:  (2,  1.508),    # thumb_ip = thumb_cmc_pitch * 1.508
+    7:  (6,  1.3462),   # index_pip = index_mcp_pitch * 1.3462
+    8:  (6,  0.4616),   # index_dip = index_mcp_pitch * 0.4616
+    10: (9,  1.3462),   # middle_pip = middle_mcp_pitch * 1.3462
+    11: (9,  0.4616),   # middle_dip = middle_mcp_pitch * 0.4616
+    14: (13, 1.3462),   # ring_pip = ring_mcp_pitch * 1.3462
+    15: (13, 0.4616),   # ring_dip = ring_mcp_pitch * 0.4616
+    18: (17, 1.3462),   # pinky_pip = pinky_mcp_pitch * 1.3462
+    19: (17, 0.4616),   # pinky_dip = pinky_mcp_pitch * 0.4616
 }
 
 # L10 右手关节范围
 # DOF0: 拇指弯曲  DOF1: 拇指侧摆  DOF2: 食指弯曲  DOF3: 中指弯曲  DOF4: 无名指弯曲
 # DOF5: 小指弯曲  DOF6: 食指侧摆  DOF7: 无名指侧摆  DOF8: 小指侧摆  DOF9: 拇指侧旋
-L10_R_MIN = [0, 0, 0, 0, 0, 0, -0.26, 0, 0, -0.52]
-L10_R_MAX = [0.75, 1.43, 1.62, 1.62, 1.62, 1.62, 0.21, 0.21, 0.34, 1.01]
+L10_R_MIN = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+L10_R_MAX = [0.5146, 1.43, 1.3607, 1.3607, 1.3607, 1.3607, 0.21, 0.21, 0.34, 1.01]
 L10_R_DIRECT = [-1, -1, -1, -1, -1, -1, 0, 0, 0, -1]
 
 # L10 手指顺序（与 SDK linker_hand_l10_can.py:478 一致）

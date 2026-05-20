@@ -100,8 +100,8 @@ L10_JOINT_MAP = {
 # DOF5: 小指弯曲  DOF6: 食指侧摆  DOF7: 无名指侧摆  DOF8: 小指侧摆  DOF9: 拇指侧旋
 
 # 各 DOF 对应的弧度范围（从 MuJoCo XML 关节的 range 属性提取）
-L10_R_MIN = [0, 0, 0, 0, 0, 0, -0.26, 0, 0, -0.52]
-L10_R_MAX = [0.75, 1.43, 1.62, 1.62, 1.62, 1.62, 0.21, 0.21, 0.34, 1.01]
+L10_R_MIN = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+L10_R_MAX = [0.5146, 1.43, 1.3607, 1.3607, 1.3607, 1.3607, 0.21, 0.21, 0.34, 1.01]
 
 # 方向标志：-1 表示 0-255 到弧度时反向映射（255 → MIN, 0 → MAX），
 # 0 表示正向映射（0 → MIN, 255 → MAX）。
@@ -301,16 +301,16 @@ def arc_to_range_l10_right(arc_values):
 # 每个 DOF 索引对应的主 (非 mimic) MuJoCo 关节索引
 # mimic 关节的角度 = 主关节 * multiplier，读回时必须取主关节
 _DOF_TO_PRIMARY_JOINT = {
-    0: 3,   # DOF0 拇指弯曲 → thumb_joint3 (primary)
-    1: 1,   # DOF1 拇指侧摆 → thumb_joint1 (独立)
-    2: 7,   # DOF2 食指弯曲 → index_joint2 (primary)
-    3: 10,  # DOF3 中指弯曲 → middle_joint1 (primary)
-    4: 14,  # DOF4 无名指弯曲 → ring_joint2 (primary)
-    5: 18,  # DOF5 小指弯曲 → little_joint2 (primary)
-    6: 5,   # DOF6 食指侧摆 → index_joint0 (独立)
-    7: 12,  # DOF7 无名指侧摆 → ring_joint0 (独立)
-    8: 16,  # DOF8 小指侧摆 → little_joint0 (独立)
-    9: 0,   # DOF9 拇指侧旋 → thumb_joint0 (独立)
+    0: 2,   # DOF0 拇指弯曲 → thumb_cmc_pitch (primary)
+    1: 1,   # DOF1 拇指侧摆 → thumb_cmc_yaw (独立)
+    2: 6,   # DOF2 食指弯曲 → index_mcp_pitch (primary)
+    3: 9,   # DOF3 中指弯曲 → middle_mcp_pitch (primary)
+    4: 13,  # DOF4 无名指弯曲 → ring_mcp_pitch (primary)
+    5: 17,  # DOF5 小指弯曲 → pinky_mcp_pitch (primary)
+    6: 5,   # DOF6 食指侧摆 → index_mcp_roll (独立)
+    7: 12,  # DOF7 无名指侧摆 → ring_mcp_roll (独立)
+    8: 16,  # DOF8 小指侧摆 → pinky_mcp_roll (独立)
+    9: 0,   # DOF9 拇指侧旋 → thumb_cmc_roll (独立)
 }
 
 
@@ -333,16 +333,16 @@ def collapse_20_to_10(joint_angles_20):
 
 # URDF mimic 关系 (同 mujoco_node.py)
 _MIMIC_JOINTS = {
-    2:  (3,  0.58),   # thumb_joint2 = thumb_joint3 * 0.58
-    4:  (3,  0.93),   # thumb_joint4 = thumb_joint3 * 0.93
-    6:  (7,  0.87),   # index_joint1 = index_joint2 * 0.87
-    8:  (7,  0.59),   # index_joint3 = index_joint2 * 0.59
-    9:  (10, 0.87),   # middle_joint0 = middle_joint1 * 0.87
-    11: (10, 0.59),   # middle_joint2 = middle_joint1 * 0.59
-    13: (14, 0.87),   # ring_joint1 = ring_joint2 * 0.87
-    15: (14, 0.59),   # ring_joint3 = ring_joint2 * 0.59
-    17: (18, 0.87),   # little_joint1 = little_joint2 * 0.87
-    19: (18, 0.59),   # little_joint3 = little_joint2 * 0.59
+    3:  (2,  1.3898),   # thumb_mcp = thumb_cmc_pitch * 1.3898
+    4:  (2,  1.508),    # thumb_ip = thumb_cmc_pitch * 1.508
+    7:  (6,  1.3462),   # index_pip = index_mcp_pitch * 1.3462
+    8:  (6,  0.4616),   # index_dip = index_mcp_pitch * 0.4616
+    10: (9,  1.3462),   # middle_pip = middle_mcp_pitch * 1.3462
+    11: (9,  0.4616),   # middle_dip = middle_mcp_pitch * 0.4616
+    14: (13, 1.3462),   # ring_pip = ring_mcp_pitch * 1.3462
+    15: (13, 0.4616),   # ring_dip = ring_mcp_pitch * 0.4616
+    18: (17, 1.3462),   # pinky_pip = pinky_mcp_pitch * 1.3462
+    19: (17, 0.4616),   # pinky_dip = pinky_mcp_pitch * 0.4616
 }
 
 
