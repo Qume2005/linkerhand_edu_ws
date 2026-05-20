@@ -264,13 +264,32 @@ def _dist3d_sq(a, b):
 
 def _dist3d_sq_constrained(a, b, camera_normal):
     """
-    加权 3D 距离平方 — 抑制相机法向量方向的分量
+    加权 3D 距离平方 — 抑制相机法向量方向的分量至 20%
 
-    camera_plane 分量权重 1.0, depth (法向量方向) 权重 0.2
+    在 IK 求解中，相机只能提供 2D 投影信息，沿相机视线方向 (法向量)
+    的深度信息是不可靠的。因此将深度方向的误差分量权重降低到 0.2 (20%)，
+    使 IK 优化器主要关注与相机平面平行的位移，避免在不可观测方向上
+    产生错误的收敛。
+
+    具体来说:
+    - d = a - b 为 3D 位移向量
+    - d_par = (d · n) * n 为沿法向量方向的分量 (深度方向)
+    - d_perp = d - d_par 为与法向量垂直的分量 (相机平面内)
+    - 最终距离 = |d_perp|² + 0.2 × |d_par|²
+
+    Args:
+        a: 指尖当前位置 (numpy 3D 向量)
+        b: 目标位置 (numpy 3D 向量)
+        camera_normal: 归一化的相机视线方向单位向量
+
+    Returns:
+        float: 加权距离平方
     """
     d = a - b
-    d_par = np.dot(d, camera_normal) * camera_normal
-    d_perp = d - d_par
+    # 将误差分解为平行于法向量和垂直于法向量的两个分量
+    d_par = np.dot(d, camera_normal) * camera_normal  # 平行分量 (深度方向)
+    d_perp = d - d_par  # 垂直分量 (相机平面内)
+    # 平面内误差全权重，深度方向误差仅保留 20%
     return float(np.dot(d_perp, d_perp) + 0.2 * np.dot(d_par, d_par))
 
 
@@ -385,46 +404,58 @@ def _ik_solve_ndof(arc, dofs, n, body_idx, target, camera_normal=None):
     for col, dof in enumerate(dofs):
         arc[dof] = best_combo[col]
 
-    # Phase 2: Jacobian 精化
+    # Phase 2: Jacobian 精化 — 在网格采样找到的全局最优起点上进行梯度下降
     max_iter = 10
     for _ in range(max_iter):
+        # Step 1: 计算当前弧度值下的指尖位置和误差向量
         base_pos = _fk_fingertip(arc, body_idx)
-        err = target - base_pos
+        err = target - base_pos  # 3D 误差向量 (从当前位置指向目标)
         if np.dot(err, err) < 1e-8:
-            break
+            break  # 误差足够小，提前退出
 
-        # 数值 Jacobian (3×N)
+        # Step 2: 构建数值 Jacobian 矩阵 J (3×N)
+        # J[i, j] = ∂(指尖位置第i维) / ∂(第j个DOF的弧度值)
+        # 采用前向差分: J[:, j] ≈ (perturbed_pos - base_pos) / eps
         J = np.zeros((3, n))
-        eps = 0.01
+        eps = 0.01  # 数值微分的步长 (弧度)
         for col, dof in enumerate(dofs):
             arc_p = list(arc)
             new_val = arc_p[dof] + eps
+            # 如果正向扰动超出关节限位，则尝试反向扰动
             clamped = max(L10_R_MIN[dof], min(L10_R_MAX[dof], new_val))
             if abs(clamped - arc_p[dof]) < 1e-9:
                 clamped = max(L10_R_MIN[dof], min(L10_R_MAX[dof], arc_p[dof] - eps))
             if abs(clamped - arc_p[dof]) < 1e-9:
-                continue
-            actual_eps = clamped - arc_p[dof]
+                continue  # 关节已达极限，无法计算梯度
+            actual_eps = clamped - arc_p[dof]  # 实际扰动量 (可能被限位截断)
             arc_p[dof] = clamped
             pert_pos = _fk_fingertip(arc_p, body_idx)
+            # 数值偏导: 指尖位移 / 弧度增量
             J[:, col] = (pert_pos - base_pos) / actual_eps
 
-        # 阻尼最小二乘: dq = J^T (JJ^T + λ²I)^{-1} dp
-        # 抑制相机法向量方向误差 (保留 20% 权重)
+        # Step 3: 使用阻尼最小二乘 (Damped Least Squares / Levenberg-Marquardt)
+        # 求解关节增量 dq = J^T (JJ^T + λ²I)^{-1} dp
+        # 其中 λ 为阻尼因子，防止在奇异点附近步长过大
         dp = err
+        # 如果有相机法向量，抑制深度方向的误差 (保留 20% 权重)
+        # 这与 _dist3d_sq_constrained 的 0.2 权重一致
         if camera_normal is not None:
             dp = dp - 0.8 * np.dot(dp, camera_normal) * camera_normal
+        # 自适应阻尼: Jacobian 范数越大 → λ 越大 → 步长越小
         jnorm = np.linalg.norm(J)
         lam = max(1.0, 5.0 / (jnorm + 0.01))
-        JJT = J @ J.T
+        JJT = J @ J.T  # 3×3 矩阵
         try:
             dq = J.T @ np.linalg.solve(JJT + lam * lam * np.eye(3), dp)
         except np.linalg.LinAlgError:
-            break
+            break  # 矩阵奇异，无法求解
 
+        # Step 4: 应用关节增量，带限幅保护
         for col, dof in enumerate(dofs):
             range_size = L10_R_MAX[dof] - L10_R_MIN[dof]
+            # 单步最大不超过关节范围的 20%，防止过冲
             max_step = range_size * 0.2
             dq[col] = max(-max_step, min(max_step, dq[col]))
             arc[dof] += dq[col]
+            # 限制在关节限位范围内
             arc[dof] = max(L10_R_MIN[dof], min(L10_R_MAX[dof], arc[dof]))

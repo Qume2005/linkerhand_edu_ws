@@ -27,6 +27,7 @@ L10 Hand Gateway Node
 
 import rclpy
 import math
+import numpy as np
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import JointState
@@ -168,7 +169,6 @@ class L10HandGatewayNode(Node):
     def _on_cmd_cp(self, msg):
         if len(msg.poses) < 5:
             return
-        import numpy as np
         targets = []
         for pose in msg.poses:
             targets.append(np.array([
@@ -183,7 +183,6 @@ class L10HandGatewayNode(Node):
     def _on_cmd_cp_diff(self, msg):
         if len(msg.poses) < 5:
             return
-        import numpy as np
         # 当前控制点 + 差分 = 目标控制点
         current_cp = compute_control_points_from_dof(self._current_dof)
         targets = []
@@ -207,15 +206,33 @@ class L10HandGatewayNode(Node):
         self._broadcast_camera()
 
     def _on_cmd_camera_diff(self, msg):
-        """相机差分命令: [delta_distance, qx, qy, qz]"""
+        """相机差分命令: [delta_distance, qx, qy, qz]
+
+        通过四元数旋转增量更新相机法向量，并叠加距离差分。
+
+        四元数旋转公式:
+            v' = q ⊗ v ⊗ q⁻¹
+
+        其中 q = (qw, qx, qy, qz) 为单位四元数，v = (0, nx, ny, nz) 为纯四元数。
+        展开后的矩阵形式为:
+
+            | 1 - 2(qy² + qz²)   2(qx·qy - qw·qz)   2(qx·qz + qw·qy) |   | nx |
+            | 2(qx·qy + qw·qz)   1 - 2(qx² + qz²)   2(qy·qz - qw·qx) | × | ny |
+            | 2(qx·qz - qw·qy)   2(qy·qz + qw·qx)   1 - 2(qx² + qy²) |   | nz |
+
+        下方 t0~t8 为展开后的预计算中间项，避免重复乘法。
+        """
         if len(msg.data) < 4:
             return
         delta_distance = float(msg.data[0])
         qx, qy, qz = float(msg.data[1]), float(msg.data[2]), float(msg.data[3])
 
-        # 从 qx,qy,qz 恢复四元数 w 分量
+        # 从 qx, qy, qz 恢复四元数 w 分量
+        # 因为 |q| = 1, 所以 qw = sqrt(1 - qx² - qy² - qz²)
+        # 但仅传输三个分量可以节省带宽
         ss = qx * qx + qy * qy + qz * qz
         if ss > 1.0:
+            # 如果模超过 1，需要缩放回单位球面
             scale = 1.0 / math.sqrt(ss)
             qx *= scale
             qy *= scale
@@ -225,8 +242,11 @@ class L10HandGatewayNode(Node):
 
         # 四元数旋转当前法向量 (camera 存储: [distance, nx, ny, nz])
         nx, ny, nz = self._camera[1], self._camera[2], self._camera[3]
-        # v' = q * v * q^(-1)
-        # 展开四元数旋转公式
+
+        # 预计算四元数乘法中间项
+        # t0 = qw·qx, t1 = qw·qy, t2 = qw·qz  (标量×向量叉积项)
+        # t3 = -qx², t4 = qx·qy, t5 = qx·qz   (向量×向量对角/交叉项)
+        # t6 = -qy², t7 = qy·qz, t8 = -qz²
         t0 = qw * qx
         t1 = qw * qy
         t2 = qw * qz
@@ -236,17 +256,24 @@ class L10HandGatewayNode(Node):
         t6 = -qy * qy
         t7 = qy * qz
         t8 = -qz * qz
+
+        # 旋转矩阵展开: R·v = 2·[对角项·v + 叉积项·v] + v
+        # 第一行: (1 - 2(qy²+qz²))·nx + 2(qx·qy - qw·qz)·ny + 2(qx·qz + qw·qy)·nz
+        #       = 2·(t6+t8)·nx + 2·(t4-t2)·ny + 2·(t1+t5)·nz + nx
         new_nx = 2.0 * ((t6 + t8 + 1.0) * nx + (t4 - t2) * ny + (t1 + t5) * nz) + nx
+        # 第二行: 2(qx·qy + qw·qz)·nx + (1 - 2(qx²+qz²))·ny + 2(qy·qz - qw·qx)·nz
         new_ny = 2.0 * ((t2 + t4) * nx + (t3 + t8 + 1.0) * ny + (t5 - t0) * nz) + ny
+        # 第三行: 2(qx·qz - qw·qy)·nx + 2(qy·qz + qw·qx)·ny + (1 - 2(qx²+qy²))·nz
         new_nz = 2.0 * ((t5 - t1) * nx + (t0 + t5) * ny + (t3 + t6 + 1.0) * nz) + nz
 
-        # 归一化
+        # 归一化: 确保旋转后的法向量仍为单位向量 (消除浮点累积误差)
         mag = math.sqrt(new_nx * new_nx + new_ny * new_ny + new_nz * new_nz)
         if mag > 1e-8:
             new_nx /= mag
             new_ny /= mag
             new_nz /= mag
 
+        # 距离差分: 在当前距离基础上叠加增量，并限制在 [0.1, 1.0] 范围内
         new_dist = max(0.1, min(1.0, self._camera[0] + delta_distance))
         self._camera = [new_dist, new_nx, new_ny, new_nz]
         self._broadcast_camera()
@@ -354,9 +381,6 @@ class L10HandGatewayNode(Node):
             pa.poses.append(p)
         return pa
 
-
-# numpy import for inverse_skeleton_to_dof callback
-import numpy as np
 
 
 def main(args=None):

@@ -1,4 +1,24 @@
-"""LLM client abstraction supporting OpenAI-style and Anthropic-style APIs."""
+"""LLM 客户端抽象层 —— 统一 OpenAI 与 Anthropic 两种 API 接口。
+
+设计模式: 基类 + 工厂
+---------------------
+本模块采用「抽象基类 + 具体子类 + 工厂函数」的经典模式：
+
+- ``LLMClientBase`` — 抽象基类，定义统一的 ``send()``、``send_streaming()``、
+  ``format_tool_result()``、``format_assistant_msg()`` 接口
+- ``OpenAIStyleClient`` — 基于 ``openai`` Python SDK，兼容所有 OpenAI 兼容 API
+  （包括 DeepSeek、通义千问等第三方中转服务）
+- ``AnthropicStyleClient`` — 基于 ``anthropic`` Python SDK，处理 Anthropic
+  独有的 system 参数分离和 content block 消息格式
+- ``create_client()`` — 工厂函数，根据 provider 名称返回对应子类实例
+
+统一数据类:
+- ``ToolCall`` — 跨 provider 的工具调用统一表示（call_id、name、arguments）
+- ``LLMResponse`` — 跨 provider 的响应统一表示（text、tool_calls、finish_reason）
+
+上层模块（conversation.py、chat_widget.py）仅依赖 ``LLMClientBase`` 接口，
+无需关心底层 API 差异，实现 provider-agnostic 的消息流处理。
+"""
 
 import json
 from dataclasses import dataclass, field

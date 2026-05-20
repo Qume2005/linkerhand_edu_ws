@@ -1,10 +1,34 @@
-#!/usr/bin/env python3 
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""L10 灵巧手 CAN 总线通信驱动。
+
+通过 CAN 总线与灵巧手硬件通信的核心驱动类，支持：
+
+- 10 自由度关节位置控制（分两帧发送：前 6 + 后 4）
+- 关节速度、力矩限制设置
+- 触觉传感器数据读取（单点压力、12×6 矩阵压力）
+- 电机温度、故障码、电流、序列号查询
+- 固件版本查询
+
+CAN 帧格式::
+
+    数据帧: [frame_property(1字节)] + [数据(0~7字节)]
+    仲裁 ID: 右手固定为 0x27
+
+通信架构:
+    发送端: 调用各 set/get 方法 → send_frame() → CAN 总线
+    接收端: 守护线程 receive_response() 持续监听 → process_response() 按帧类型分发
+
+注意:
+    - 使用 python-can 库，Linux 使用 SocketCAN，Windows 使用 PCAN/candle
+    - 所有 CAN 帧发送后都有最小间隔（默认 2ms），避免总线拥塞
+    - 发送命令期间设置 ``is_cmd=True``，阻止状态查询干扰
+"""
 import can
-import time,sys
+import time
+import sys
 import threading
 import numpy as np
-#from tabulate import tabulate
 from enum import Enum
 from l10_right_hand_driver.linkerhand.open_can import OpenCan
 from l10_right_hand_driver.linkerhand.color_msg import ColorMsg
@@ -13,6 +37,10 @@ from can.exceptions import CanError
 
 
 class FrameProperty(Enum):
+    """CAN 帧类型标识枚举。
+
+    每个值对应 CAN 数据帧的第一个字节，用于标识帧的用途。
+    """
     INVALID_FRAME_PROPERTY = 0x00
     JOINT_POSITION_RCO = 0x01
     MAX_PRESS_RCO = 0x02
@@ -31,6 +59,23 @@ class FrameProperty(Enum):
     MOTOR_TEMPERATURE_2 = 0x34
 
 class LinkerHandL10Can:
+    """L10 灵巧手 CAN 总线通信接口。
+
+    封装了与 L10 灵巧手硬件通信的全部 CAN 协议细节。
+    内部维护一个守护线程持续接收 CAN 响应，并按帧类型更新内部状态。
+
+    Args:
+        can_id: CAN 仲裁 ID，右手固定 ``0x27``
+        can_channel: CAN 接口名称，默认 ``"can0"``
+        baudrate: 波特率，默认 ``1000000`` (1Mbps)
+        yaml: YAML 配置文件路径（可选）
+
+    Attributes:
+        joint_angles: 最近一次发送的 10 个关节角度缓存
+        normal_force: 5 指法向力列表
+        thumb_matrix ~ little_matrix: 5 指 12×6 矩阵触觉数据 (numpy array)
+        version: 固件版本信息列表
+    """
     def __init__(self,can_id, can_channel='can0', baudrate=1000000, yaml=""):
         self.can_id = can_id
         self.can_channel = can_channel
@@ -148,8 +193,6 @@ class LinkerHandL10Can:
                 self.bus = can.interface.Bus(channel=self.can_channel, interface="socketcan", bitrate=self.baudrate)
             else:
                 print("Reconnecting CAN devices ....")
-            # time.sleep(1)
-            # 
         time.sleep(sleep)
 
     def set_joint_positions(self, joint_angles):
@@ -158,9 +201,7 @@ class LinkerHandL10Can:
         self.is_cmd = True
         # Send angle control in frames, L10 protocol splits into first 6 and last 4
         self.send_frame(FrameProperty.JOINT_POSITION2_RCO, self.joint_angles[6:])
-        #time.sleep(0.001)
         self.send_frame(FrameProperty.JOINT_POSITION_RCO, self.joint_angles[:6])
-        #time.sleep(0.002)
         self.is_cmd = False
         
 
@@ -194,7 +235,10 @@ class LinkerHandL10Can:
     def request_all_status(self):
         """Get all joint positions and pressures."""
         self.send_frame(FrameProperty.REQUEST_DATA_RETURN, [])
-    ''' -------------------Pressure Sensors---------------------- '''
+
+    # ============================================================
+    #  压力传感器
+    # ============================================================
     def get_normal_force(self):
         self.send_frame(FrameProperty.HAND_NORMAL_FORCE,[],sleep=0.004)
 
@@ -204,8 +248,11 @@ class LinkerHandL10Can:
     def get_tangential_force_dir(self):
         self.send_frame(FrameProperty.HAND_TANGENTIAL_FORCE_DIR,[],sleep=0.004)
     def get_approach_inc(self):
-        self.send_frame(FrameProperty.HAND_APPROACH_INC,[],sleep=0.004)
-    ''' -------------------Motor Temperature---------------------- '''
+        self.send_frame(FrameProperty.HAND_APPROACH_INC, [], sleep=0.004)
+
+    # ============================================================
+    #  电机温度与故障码
+    # ============================================================
     def get_motor_temperature(self):
         self.send_frame(FrameProperty.MOTOR_TEMPERATURE_1,[],sleep=0.01)
         self.send_frame(FrameProperty.MOTOR_TEMPERATURE_2,[],sleep=0.01)
@@ -343,7 +390,6 @@ class LinkerHandL10Can:
     def get_current_status(self):
         '''Get current joint status'''
         if self.is_cmd == False:
-            #if self.version != None and self.version[4] > 35:
             self.send_frame(0x01,[],sleep=0.003)
             self.send_frame(0x04,[],sleep=0.003)
             state = self.x01 + self.x04
@@ -506,17 +552,6 @@ class LinkerHandL10Can:
         
         #return [data[0],data[1],data[2],chr(data[3]),f"V{data[4] >> 4}.{data[4] & 0x0F}",f"V{data[5] >> 4}.{data[5] & 0x0F}",data[6]]
         table = [[k, v] for k, v in result.items()]
-        #print(tabulate(table, tablefmt="grid"), flush=True)
-
-
-    # # 示例数据
-    # data = [0x64, 0x15, 0x03, 0x0A, 0x4C, 0x11, 0x22, 0x01]
-    # parsed = parse_version_data(data)
-
-    # # 打印结果
-    # for k, v in parsed.items():
-    #     print(f"{k}: {v}")
-
 
     def close_can_interface(self):
         """Stop the CAN communication."""

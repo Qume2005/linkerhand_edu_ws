@@ -1,8 +1,21 @@
 """
-L10 Right Hand Forward Kinematics - Pure Python
-运动链数据 + 四元数数学 + FK 求解器
+L10 Right Hand Forward Kinematics — 纯 Python 正向运动学库
 
-所有数据从 MuJoCo XML 模型硬编码，无 MuJoCo 运行时依赖。
+本模块实现了 L10 右手从 10 自由度 (DOF) 到 21 个骨骼点位姿的完整正向运动学求解，
+完全不依赖 MuJoCo 运行时。所有运动链数据均从 MuJoCo XML 模型中硬编码提取。
+
+核心功能：
+- **四元数数学**：乘法、旋转向量、轴角转四元数（w,x,y,z 约定，与 MuJoCo 一致）
+- **DOF 转换**：0-255 整数 <-> 弧度值（含方向反转处理 L10_R_DIRECT）
+- **20 关节映射**：10 DOF <-> 20 MuJoCo 关节（含 mimic 关节乘数展开/折叠）
+- **FK 求解器**：给定 20 个关节角度，计算 21 个 body 的全局位置和四元数
+
+设计原则：
+- 所有运动链数据从 MuJoCo XML 硬编码，无 MuJoCo 运行时依赖
+- 预计算 ``_CHAIN_NP`` 将列表数据转为 numpy 数组，避免每次 FK 调用时重复转换
+- 与 ``l10_hand_gateway/ik_solver.py`` 构成 FK/IK 对：FK 用于骨架计算，IK 用于逆解
+
+依赖：numpy（无 ROS 依赖，可独立使用）
 """
 
 import math
@@ -14,7 +27,15 @@ import numpy as np
 
 
 def quat_mul(q1, q2):
-    """四元数乘法 q1 * q2"""
+    """Hamilton 四元数乘法 q1 * q2。
+
+    Args:
+        q1: 第一个四元数 (w, x, y, z)
+        q2: 第二个四元数 (w, x, y, z)
+
+    Returns:
+        numpy.ndarray: 乘积四元数 (w, x, y, z)
+    """
     w1, x1, y1, z1 = q1
     w2, x2, y2, z2 = q2
     return np.array([
@@ -26,15 +47,30 @@ def quat_mul(q1, q2):
 
 
 def quat_rotate(q, v):
-    """用四元数 q 旋转向量 v: q * (0,v) * q^-1"""
+    """用四元数 q 旋转向量 v，即计算 q * (0, v) * q^{-1}。
+
+    Args:
+        q: 单位四元数 (w, x, y, z)
+        v: 三维向量 (x, y, z)
+
+    Returns:
+        numpy.ndarray: 旋转后的三维向量
+    """
     qv = np.array([0.0, v[0], v[1], v[2]])
     q_conj = np.array([q[0], -q[1], -q[2], -q[3]])
     return quat_mul(quat_mul(q, qv), q_conj)[1:]
 
 
 def axis_angle_to_quat(axis, angle):
+    """轴角表示转四元数 (w, x, y, z)。
 
-    """轴角转四元数 (w, x, y, z)"""
+    Args:
+        axis: 旋转轴单位向量 (x, y, z)
+        angle: 旋转角度（弧度）
+
+    Returns:
+        numpy.ndarray: 四元数 (w, x, y, z)
+    """
     half = angle * 0.5
     s = math.sin(half)
     c = math.cos(half)
@@ -45,7 +81,14 @@ def axis_angle_to_quat(axis, angle):
 # L10 右手 DOF 映射常量 (from mujoco_node.py)
 # ============================================================================
 
-# MuJoCo 关节索引 -> SDK DOF 索引 (耦合关节共享同一 DOF)
+# MuJoCo 关节索引 -> SDK DOF 索引 (耦合/mimic 关节共享同一 DOF)
+#
+# MuJoCo 模型有 20 个关节，但 L10 只驱动 10 个 DOF。
+# 多个 MuJoCo 关节映射到同一个 DOF 索引，其中非 mimic 关节（主关节）的
+# 角度直接等于 DOF 弧度值，mimic 关节的角度 = 主关节角度 * 乘数。
+#
+# 示例：MuJoCo 关节 2, 3, 4 都映射到 DOF 0（拇指弯曲），
+#       其中关节 3 是主关节，关节 2 和 4 是 mimic 关节。
 L10_JOINT_MAP = {
     0: 9,  1: 1,   2: 0,   3: 0,  4: 0,  5: 6,
     6: 2,  7: 2,   8: 2,   9: 3,  10: 3, 11: 3,
@@ -55,14 +98,32 @@ L10_JOINT_MAP = {
 
 # DOF0: 拇指弯曲  DOF1: 拇指侧摆  DOF2: 食指弯曲  DOF3: 中指弯曲  DOF4: 无名指弯曲
 # DOF5: 小指弯曲  DOF6: 食指侧摆  DOF7: 无名指侧摆  DOF8: 小指侧摆  DOF9: 拇指侧旋
+
+# 各 DOF 对应的弧度范围（从 MuJoCo XML 关节的 range 属性提取）
 L10_R_MIN = [0, 0, 0, 0, 0, 0, -0.26, 0, 0, -0.52]
 L10_R_MAX = [0.75, 1.43, 1.62, 1.62, 1.62, 1.62, 0, 0.13, 0.26, 1.01]
+
+# 方向标志：-1 表示 0-255 到弧度时反向映射（255 → MIN, 0 → MAX），
+# 0 表示正向映射（0 → MIN, 255 → MAX）。
+# 大部分 DOF 是 -1，因为 SDK 约定 0=弯曲，但弧度值 0=伸直。
 L10_R_DIRECT = [-1, -1, -1, -1, -1, -1, -1, 0, 0, -1]
 
 
 # ============================================================================
 # 运动链数据 (from linker_hand_l10_right.xml)
-# 格式: (body_idx, parent_idx, pos[], quat[], joint_axis[], mj_joint_idx)
+#
+# 每个元组描述运动链中的一个连杆 (body)，格式为：
+#   (body_idx, parent_idx, pos[], quat[], joint_axis[], mj_joint_idx)
+#
+# - body_idx:     MuJoCo body 编号（0 = 世界/基座，1-20 = 手指各连杆）
+# - parent_idx:   父 body 编号（构成树形层级结构）
+# - pos[]:        相对于父 body 的平移偏移 (3D)
+# - quat[]:       相对于父 body 的静态旋转四元数 (w,x,y,z)，表示关节零位的朝向
+# - joint_axis[]: 关节旋转轴方向 (3D)，如 [1,0,0] 表示绕局部 X 轴旋转
+# - mj_joint_idx: 对应的 MuJoCo 关节索引（0-19）
+#
+# 拇指有 5 个关节 (0-4)，其余四指各有 3-4 个关节。
+# body 0 为世界原点，不在此表中（位姿初始化为单位变换）。
 # ============================================================================
 
 KINEMATIC_CHAIN = [
@@ -137,15 +198,18 @@ KINEMATIC_CHAIN = [
             [0, 1, 0], 19),
 ]
 
-# 预转为 numpy 数组
+# 预计算：将运动链数据从 Python 列表转为 numpy 数组
+#
+# 这一步在模块加载时执行一次，避免每次调用 compute_fk() 时重复创建 numpy 数组。
+# FK 求解在每次收到手部状态时都会调用（可达 30Hz+），预计算可显著减少 GC 压力。
 _CHAIN_NP = []
 for body_idx, parent_idx, pos, quat, axis, mj_joint in KINEMATIC_CHAIN:
     _CHAIN_NP.append((
         body_idx, parent_idx,
-        np.array(pos, dtype=np.float64),
-        np.array(quat, dtype=np.float64),
-        np.array(axis, dtype=np.float64),
-        mj_joint
+        np.array(pos, dtype=np.float64),       # 平移偏移
+        np.array(quat, dtype=np.float64),      # 静态四元数
+        np.array(axis, dtype=np.float64),      # 关节轴
+        mj_joint                                # 关节索引（int）
     ))
 
 
@@ -155,11 +219,34 @@ for body_idx, parent_idx, pos, quat, axis, mj_joint in KINEMATIC_CHAIN:
 
 
 def _scale(val, a_min, a_max, b_min, b_max):
+    """线性映射（线性插值）：将 val 从 [a_min, a_max] 区间映射到 [b_min, b_max] 区间。
+
+    Args:
+        val:     待映射的值
+        a_min:   源区间下界
+        a_max:   源区间上界
+        b_min:   目标区间下界
+        b_max:   目标区间上界
+
+    Returns:
+        float: 映射后的值
+    """
     return (val - a_min) * (b_max - b_min) / (a_max - a_min) + b_min
 
 
 def range_to_arc_l10_right(position_range):
-    """将 10 DOF (0-255) 转换为弧度值"""
+    """将 10 DOF 的 0-255 整数值转换为对应的弧度值。
+
+    根据 L10_R_DIRECT 标志决定映射方向：
+    - DIRECT == -1 时反向映射：0 → MAX, 255 → MIN（"弯曲"语义与弧度方向相反）
+    - DIRECT ==  0 时正向映射：0 → MIN, 255 → MAX
+
+    Args:
+        position_range: 10 个 DOF 值的列表，每个值范围 [0, 255]
+
+    Returns:
+        list[float]: 10 个弧度值的列表
+    """
     hand_arc = [0.0] * 10
     for i in range(10):
         val = min(255, max(0, position_range[i]))
@@ -171,7 +258,14 @@ def range_to_arc_l10_right(position_range):
 
 
 def arc_to_range_l10_right(arc_values):
-    """将 10 DOF 弧度值转换回 0-255 (range_to_arc 的逆运算)"""
+    """将 10 DOF 弧度值转换回 0-255 整数值（range_to_arc 的逆运算）。
+
+    Args:
+        arc_values: 10 个弧度值的列表
+
+    Returns:
+        list[float]: 10 个 0-255 范围内的值（已 clamp）
+    """
     position_range = [0.0] * 10
     for i in range(10):
         arc_clamped = min(L10_R_MAX[i], max(L10_R_MIN[i], arc_values[i]))
@@ -186,6 +280,22 @@ def arc_to_range_l10_right(arc_values):
         position_range[i] = min(255, max(0, val))
     return position_range
 
+
+# ============================================================================
+# Mimic 关节（耦合关节）概念说明
+#
+# L10 有 10 个电机 DOF，但 MuJoCo 模型有 20 个关节。为了在仿真中逼真地
+# 模拟手指运动，部分关节的角度由主关节的角度乘以一个固定系数得到——
+# 这些关节称为 "mimic 关节"（或耦合关节）。
+#
+# 例如：
+#   - 食指有 3 个弯曲关节 (MuJoCo 6, 7, 8)，但只有 1 个电机 (DOF 2)
+#   - MuJoCo 关节 7 是主关节，关节 6 = 主 * 0.87，关节 8 = 主 * 0.59
+#   - 这模拟了人手指近端弯曲时远端自然跟随的力学耦合效果
+#
+# 20 关节 → 10 DOF 时：取每个 DOF 对应的主关节角度（忽略 mimic）
+# 10 DOF → 20 关节时：先映射主关节，再通过乘数展开 mimic 关节
+# ============================================================================
 
 # 20 关节 → 10 DOF 的反向映射
 # 每个 DOF 索引对应的主 (非 mimic) MuJoCo 关节索引
@@ -205,7 +315,16 @@ _DOF_TO_PRIMARY_JOINT = {
 
 
 def collapse_20_to_10(joint_angles_20):
-    """将 20 个关节角度折叠回 10 DOF (读取主关节角度)"""
+    """将 20 个 MuJoCo 关节角度折叠回 10 DOF（只读取主关节角度）。
+
+    忽略所有 mimic 关节，只取每个 DOF 对应的主关节角度值。
+
+    Args:
+        joint_angles_20: 20 个 MuJoCo 关节角度的列表（弧度）
+
+    Returns:
+        list[float]: 10 个 DOF 对应的主关节角度值
+    """
     dof_values = [0.0] * 10
     for dof_idx, mj_idx in _DOF_TO_PRIMARY_JOINT.items():
         dof_values[dof_idx] = joint_angles_20[mj_idx]
@@ -228,7 +347,17 @@ _MIMIC_JOINTS = {
 
 
 def expand_to_20_joints(arc_10):
-    """将 10 DOF 弧度值扩展为 20 个 MuJoCo 关节角度 (含 mimic 乘数)"""
+    """将 10 DOF 弧度值扩展为 20 个 MuJoCo 关节角度（含 mimic 乘数展开）。
+
+    先通过 L10_JOINT_MAP 将 10 DOF 映射到对应的 MuJoCo 关节，
+    再根据 _MIMIC_JOINTS 中的乘数关系填充耦合关节。
+
+    Args:
+        arc_10: 10 个 DOF 弧度值的列表
+
+    Returns:
+        list[float]: 20 个 MuJoCo 关节角度（弧度）
+    """
     mapped = [0.0] * 20
     for mj_idx, dof_idx in L10_JOINT_MAP.items():
         mapped[mj_idx] = arc_10[dof_idx]

@@ -1,4 +1,8 @@
-"""PySide2 chat UI for LLM hand control."""
+"""PySide2 聊天 UI —— LLM 手部控制的图形交互界面。
+
+本模块实现基于 PySide2 (Qt) 的聊天窗口，用于与 LLM 进行自然语言对话并
+实时控制灵巧手。支持流式响应显示、Markdown 渲染、暗色主题、工具调用展示。
+"""
 
 import html
 import re
@@ -78,7 +82,17 @@ code { background: #1e1e1e; padding: 2px 5px; border-radius: 3px; }
 
 
 class _StateSignal(QWidget):
-    """跨线程信号中转。"""
+    """跨线程信号中转站。
+
+    由于 Qt 的信号/槽机制要求在 GUI 线程中操作控件，但 LLM API 调用
+    在后台线程执行，因此需要通过 Qt Signal 将数据从工作线程安全地
+    传递到主线程。_StateSignal 作为一个隐藏的 QWidget，充当信号中转：
+
+    - ``assistant_text_chunk`` — 流式文本片段（逐字显示效果）
+    - ``response_done`` — 完整响应对象（包含 tool_calls）
+    - ``busy_changed`` — 忙碌状态切换（禁用/启用输入）
+    - ``error_occurred`` — 错误信息展示
+    """
     assistant_text_chunk = Signal(str)
     response_done = Signal(object)
     busy_changed = Signal(bool)
@@ -86,7 +100,28 @@ class _StateSignal(QWidget):
 
 
 class ChatWindow(QWidget):
-    """主聊天窗口。"""
+    """主聊天窗口 —— LLM 对话界面与灵巧手控制的桥梁。
+
+    信号桥接模式
+    ------------
+    ChatWindow 采用「信号桥接」模式连接 Qt UI、ROS 节点和 LLM API 三个子系统：
+
+    1. **Qt 内部信号** — ``_StateSignal`` 将 LLM 工作线程的流式输出、
+       完成回调、错误等事件安全传递到 Qt 主线程进行 UI 更新。
+
+    2. **跨模块信号** — ``dof_publish_requested`` 信号连接到 ROS 节点
+       的 ``publish_dof()`` 方法，将 LLM 工具调用产生的 DOF 命令
+       发送到 ROS 话题。由于信号在 Qt 主线程中触发，避免了跨线程
+       直接调用 ROS publish 的线程安全问题。
+
+    3. **流式渲染** — LLM 响应通过 ``send_streaming()`` 的两个回调
+       (``on_text_chunk`` 和 ``on_done``) 分别处理逐字显示和最终结果，
+       实现 ChatGPT 风格的流式输出效果。
+
+    工具调用处理流程:
+        用户输入 → LLM 流式推理 → tool_call → extract DOF →
+        emit dof_publish_requested → ROS publish → 插值动画执行
+    """
 
     dof_publish_requested = Signal(list, float)
 

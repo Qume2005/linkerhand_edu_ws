@@ -200,7 +200,16 @@ class L10RightHandDriver(Node):
     # ================================================================
 
     def _run(self):
-        # 1. 发送缓存的命令
+        """定时器回调：4 步主循环。
+
+        每个周期依次执行：
+            1. **发送命令**：将缓存的新位姿命令通过 CAN 发送给硬件
+            2. **读取状态**：从 CAN 总线读取当前 10 DOF 关节位置并发布
+            3. **发布信息**：如有人订阅，查询并发布手部信息（速度、温度、故障等）
+            4. **触觉数据**：如启用触觉且为矩阵类型，读取并发布矩阵压感数据
+        """
+        # 步骤 1: 取出并清空缓存的命令，通过 CAN 发送给硬件
+        # 使用线程锁保证与 _hand_control_cb 的线程安全
         with self._cmd_lock:
             pose = self._pending_pose
             self._pending_pose = None
@@ -208,7 +217,8 @@ class L10RightHandDriver(Node):
         if pose is not None:
             self.hand.set_joint_positions(pose)
 
-        # 2. 读取并发布关节状态
+        # 步骤 2: 从 CAN 总线读取当前实际关节位置（由 CAN 接收线程维护的缓存）
+        # get_current_pub_status() 返回最近一次接收到的 x01+x04 帧拼合的 10 DOF 值
         now = self.get_clock().now().to_msg()
         try:
             state = self.hand.get_current_pub_status()
@@ -223,11 +233,13 @@ class L10RightHandDriver(Node):
         except Exception as e:
             self.get_logger().error(f"Error reading state: {e}")
 
-        # 3. 发布手部信息
+        # 步骤 3: 发布手部信息（速度、力矩、温度、故障码等）
+        # 仅在有订阅者时查询，避免不必要的 CAN 通信开销
         if self.hand_info_pub.get_subscription_count() > 0:
             self._publish_hand_info(now)
 
-        # 4. 触觉数据
+        # 步骤 4: 读取触觉数据（矩阵型传感器，每指 12x6 网格）
+        # touch_type > 1 表示矩阵传感器；touch_type == 1 为单点传感器
         if self.is_touch and self.touch_type > 1:
             self._read_and_publish_touch(now)
 

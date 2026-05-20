@@ -56,7 +56,20 @@ COLOR_ACCENT = "#666666"
 
 
 class DualSlider(QWidget):
-    """自定义双指示器滑块: 灰色=当前状态(只读), 白色=目标(可拖动)"""
+    """双指示器滑块控件 —— 灰色菱形表示当前位姿 (只读)，白色菱形表示目标位姿 (可拖动)
+
+    该控件在同一滑槽上显示两个菱形指示器:
+    - 灰色指示器: 显示从网关订阅的当前实际位姿 (只读，不可拖动)
+    - 白色指示器: 显示用户设置的目标位姿 (可通过鼠标拖动改变)
+
+    当用户拖动白色指示器时，发射 valueChanged 信号，由 ControlPanelWindow
+    将新的目标值发布到 /l10_gateway/cmd/dof。
+
+    Attributes:
+        TROUGH_PAD: 滑槽两端留白 (像素)
+        INDICATOR_HW: 指示器半宽 (像素)
+        INDICATOR_HH: 指示器半高 (像素)
+    """
 
     valueChanged = Signal()
 
@@ -183,7 +196,18 @@ class LegendIndicator(QWidget):
 # ---- 触觉传感器热力图组件 ----
 
 class HeatmapWidget(QWidget):
-    """单指 12x6 压力矩阵热力图"""
+    """单指触觉传感器热力图控件 —— 12×6 压力矩阵的可视化
+
+    使用 plasma 色表 (4 段渐变) 将 12×6 压力矩阵渲染为彩色热力图。
+    每个单元格的颜色表示该位置的压力值 (0=深蓝, 255=亮黄)。
+    上方显示手指名称标签，下方显示总压力质量 (克)。
+
+    Attributes:
+        FINGER_NAMES: 5 个手指的英文名称 (用于标签显示)
+        FINGER_COLORS: 5 个手指的标识颜色 (紫/金/蓝/绿/红)
+        ROWS: 压力矩阵行数 (12)
+        COLS: 压力矩阵列数 (6)
+    """
 
     FINGER_NAMES = ["Pinky", "Ring", "Middle", "Index", "Thumb"]
     FINGER_COLORS = [
@@ -295,7 +319,12 @@ class _ColorBarWidget(QWidget):
 
 
 class TactileStripWidget(QWidget):
-    """底部触觉传感器条: 5 个手指热力图 + 色标"""
+    """触觉传感器底部条形控件 —— 5 个手指热力图 + 垂直色标
+
+    水平排列显示 5 个手指的热力图 (HeatmapWidget)，左侧附带垂直色标条。
+    接收来自网关的触觉矩阵数据和质量数据，分发到对应的热力图子控件。
+    排列顺序: 色标 | 标题 | 小指 | 无名指 | 中指 | 食指 | 拇指
+    """
     def __init__(self, parent=None):
         super().__init__(parent)
         layout = QHBoxLayout(self)
@@ -359,7 +388,23 @@ class TactileStripWidget(QWidget):
 
 
 class ControlPanelNode(Node):
-    """ROS2 节点 — 通过 l10_hand_gateway 通信"""
+    """ROS 2 控制面板节点 —— 通过 l10_hand_gateway 网关与后端通信
+
+    负责将面板的用户操作 (DOF 命令、相机命令) 发布到网关，
+    同时订阅网关广播的当前/目标状态和触觉传感器数据，
+    通过回调函数传递给 ControlPanelWindow。
+
+    发布话题:
+        - /l10_gateway/cmd/dof: 用户设置的目标 DOF 值
+        - /l10_gateway/cmd/camera: 用户调整的相机状态
+
+    订阅话题:
+        - /l10_gateway/current/dof: 后端当前实际位姿
+        - /l10_gateway/target/dof: 网关确认的目标位姿 (外部命令更新)
+        - /l10_gateway/sensor/matrix_touch: 触觉矩阵数据
+        - /l10_gateway/sensor/matrix_touch_mass: 触觉质量数据
+        - /l10_gateway/camera: 相机状态广播
+    """
 
     def __init__(self):
         super().__init__('l10_control_panel')
@@ -443,7 +488,12 @@ class ControlPanelNode(Node):
 
 
 class _StateSignal(QWidget):
-    """用于跨线程传递状态更新的信号中转"""
+    """跨线程信号中转控件 —— 将 ROS spin 线程的状态更新安全传递到 Qt 主线程
+
+    Qt 的信号/槽机制是线程安全的，而直接在非 Qt 线程操作 QWidget 会导致崩溃。
+    _StateSignal 提供一组 Signal 属性，由 ROS 回调函数 (运行在 spin daemon 线程)
+    通过 emit() 发射，对应的槽函数在 Qt 主线程中执行。
+    """
     current_received = Signal(list)
     target_received = Signal(list)
     tactile_matrix_received = Signal(str)
@@ -455,7 +505,22 @@ class _StateSignal(QWidget):
 
 
 class ControlPanelWindow(QWidget):
-    """主窗口"""
+    """L10 手部控制面板主窗口 —— 滑块控制 + 3D 骨架交互 + 触觉热力图
+
+    窗口分为上下两个区域:
+    - 上部: 左侧 10 个双指示器滑块 + 预设手势按钮，右侧 3D 骨架交互控件
+    - 下部: 5 个手指的触觉传感器热力图条
+
+    线程模型:
+    - Qt 主线程: 处理 UI 渲染和用户交互
+    - ROS spin daemon 线程: 接收网关消息
+    - _StateSignal 桥接两个线程，确保 UI 操作在主线程执行
+
+    防循环机制 (_syncing 标志):
+    当外部命令更新目标状态时 (如 LLM 控制器发送手势)，面板需要同步更新
+    滑块位置。但滑块更新的 valueChanged 信号又会触发发布命令，形成死循环。
+    _syncing 标志在同步更新期间设为 True，阻止回调中的重入发布。
+    """
 
     def __init__(self):
         super().__init__()

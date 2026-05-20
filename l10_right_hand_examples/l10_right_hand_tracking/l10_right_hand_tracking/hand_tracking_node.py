@@ -95,7 +95,21 @@ def _fk_control_points(dof_10):
 
 
 def compute_camera_cmd(pts_3d):
-    """手掌法向量 + 距离 → MuJoCo 相机 [distance, nx, ny, nz]"""
+    """从 3D 手部关键点计算 MuJoCo 相机控制命令。
+
+    通过手腕、食指 MCP、中指 MCP、小指 MCP 四个点构建掌心坐标系：
+    - Y 轴：手腕 → 中指 MCP 方向
+    - X 轴：食指 MCP → 小指 MCP 方向（投影到 Y 的法平面后归一化）
+    - 法向量：X × Y 得到掌心法向量
+
+    坐标轴映射 (真实相机 → MuJoCo): nx=-normal[2], ny=normal[0], nz=-normal[1]
+
+    Args:
+        pts_3d: 21 个 3D 关键点 (numpy 数组列表)
+
+    Returns:
+        [distance, nx, ny, nz] 浮点数列表
+    """
     wrist = pts_3d[0]
     index_mcp = pts_3d[5]
     middle_mcp = pts_3d[9]
@@ -145,7 +159,18 @@ def compute_finger_curls(landmarks):
 
 
 def landmarks_to_raw_dof(landmarks):
-    """从 MediaPipe 关键点计算 10 DOF (原始映射, 未经校准)"""
+    """从 MediaPipe 21 关键点计算 10 DOF 原始映射值（未经校准修正）。
+
+    弯曲 DOF (0,2,3,4,5): 由各手指的 curl 值反转为 0-255 范围
+        curl=0 (伸直) → 255, curl=1 (弯曲) → 0
+
+    侧摆 DOF (6,7,8): 以中指 MCP 的 x 坐标为参考中心，
+        各指尖到中心的距离归一化后映射到 0-255
+
+    拇指侧摆 DOF (1): 拇指尖到食指 MCP 的横向距离
+
+    拇指旋转 DOF (9): 固定值 41.0（无可靠映射源）
+    """
     curls = compute_finger_curls(landmarks)
     dof = [0.0] * 10
     # 弯曲 DOF
@@ -192,18 +217,25 @@ def _extract_features(landmarks):
 
 
 def _build_cp_calibration(samples):
-    """
-    从校准样本构建 per-finger CP 分段线性修正表 (全部 5 指)。
+    """从校准样本构建 per-finger 控制点分段线性修正模型（全部 5 指）。
 
-    每根手指独立: curl → 3D delta
-    自动加入零锚点: curl=1 时 delta=0 (信任握拳映射)
+    模型原理
+    --------
+    对每根手指独立建立一个 curl → 3D delta 的分段线性查找表。
+    使用时根据当前手指的 curl 值查表插值，得到应施加的 3D 偏移修正量。
+
+    零锚点约定: 自动在 curl=1 处插入 delta=(0,0,0)，
+    表示完全握拳时信任原始 DOF→FK 映射，不做修正。
 
     Args:
-        samples: list of {"curls": [5], "cp_delta": [[dx,dy,dz] x 5]}
+        samples: 校准采样列表，每项含:
+            - "curls": 5 个手指的弯曲比
+            - "cp_delta": 5 个手指的 3D 偏移量 [dx, dy, dz]
 
     Returns:
-        list of 5 sorted_pairs
-        或 None
+        5 个分段线性表的列表（每根手指一个），
+        每个表为 (curl, np.array([dx,dy,dz])) 的有序列表，
+        或 None（如果无样本）
     """
     if not samples:
         return None
@@ -228,16 +260,18 @@ def _build_cp_calibration(samples):
 
 
 def _apply_cp_calibration(raw_cp, curls, models):
-    """
-    对全部 5 根手指应用分段线性 CP 修正。
+    """对全部 5 根手指应用分段线性控制点修正。
+
+    根据每根手指的 curl 值在对应的分段线性表中查找修正向量 delta，
+    然后将 delta 叠加到原始控制点上。curl 值超出表范围时使用最近端点值。
 
     Args:
-        raw_cp: [5] x np.array([3]) 原始控制点
-        curls: [5] 弯曲比
-        models: 5 个分段线性表
+        raw_cp: 5 个原始控制点 (numpy array 列表, 每个 shape=(3,))
+        curls: 5 个手指的弯曲比
+        models: 5 个分段线性表（由 _build_cp_calibration 生成）
 
     Returns:
-        [5] x np.array([3]) 修正后控制点
+        5 个修正后的控制点 (numpy array 列表)
     """
     corrected = [cp.copy() for cp in raw_cp]
     for fi in range(5):
@@ -312,6 +346,37 @@ def draw_tracking(img, landmarks, handedness, targets, curls):
 # ---------------------------------------------------------------------------
 
 class HandTrackingNode(Node):
+    """手势跟踪 ROS 节点 —— 摄像头实时捕捉手部姿态并映射为灵巧手控制命令。
+
+    核心管道
+    --------
+    摄像头帧 → MediaPipe 手部关键点检测 → 右手 x 轴镜像 →
+    弯曲度/侧摆计算 → 10-DOF 映射 → FK 正运动学 → 5 指尖控制点 →
+    EMA 平滑 → 发布到 /l10_gateway/cmd/control_points
+
+    同时通过掌心法向量计算相机控制命令，发布到 /l10_gateway/cmd/camera。
+
+    校准系统
+    --------
+    支持分段线性校正模型，通过 OpenCV 窗口的键盘交互进行校准：
+    - ``C`` 键：进入/完成校准模式
+    - ``Space`` 键：在校准模式下采样当前手势的映射偏差
+
+    ROS 参数
+    --------
+    - ``camera_id`` (int, 默认 0): 摄像头设备号
+    - ``publish_hz`` (int, 默认 30): 发布频率 (Hz)
+
+    话题接口
+    --------
+    发布:
+    - /l10_gateway/cmd/control_points (PoseArray) — 5 个指尖 3D 目标位置
+    - /l10_gateway/cmd/camera (Float32MultiArray) — 相机 [距离, nx, ny, nz]
+
+    订阅:
+    - /l10_gateway/current/control_points (PoseArray) — 当前实际控制点
+    - /l10_gateway/target/dof (JointState) — 校准采样用
+    """
 
     def __init__(self):
         super().__init__('hand_tracking_node')
@@ -406,23 +471,39 @@ class HandTrackingNode(Node):
             self._gateway_target_dof = [float(v) for v in msg.position[:10]]
 
     def _tick(self):
+        """定时器回调 —— 每帧执行一次完整的检测-映射-发布-渲染流水线。
+
+        流水线步骤:
+        1. 读取摄像头帧并水平镜像（自拍视角）
+        2. MediaPipe 手部关键点检测
+        3. 处理 OpenCV 窗口键盘输入（校准控制）
+        4. 若无检测结果则显示提示并返回
+        5. 右手关键点沿 x=0.5 轴镜像
+        6. 计算各手指弯曲比 (curls)
+        7. 通过 landmarks→DOF→FK 管道计算 5 个指尖控制点
+        8. 若有校准模型，对控制点施加分段线性修正
+        9. EMA 平滑（alpha=0.4）
+        10. 发布控制点和相机命令到 ROS 话题
+        11. 渲染 OpenCV 调试窗口
+        """
         ret, frame = self.cap.read()
         if not ret:
             return
 
-        frame = cv2.flip(frame, 1)  # 镜像
+        frame = cv2.flip(frame, 1)  # 镜像（自拍视角）
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         result = self._detect_full(rgb)
 
-        # 键盘处理
+        # ---- 键盘交互处理 ----
         key = cv2.waitKey(1) & 0xFF
         if key == ord('c') or key == ord('C'):
+            # C 键: 切换校准模式（进入/完成并构建模型）
             if self._cal_mode:
                 if self._cal_samples:
                     self._cal_cp_models = _build_cp_calibration(self._cal_samples)
                     if self._cal_cp_models:
                         self.get_logger().info(
-                            f'Calibration: {len(self._cal_samples)} samples → '
+                            f'Calibration: {len(self._cal_samples)} samples -> '
                             f'CP correction models built')
                     else:
                         self.get_logger().warn('Calibration failed')
@@ -432,7 +513,8 @@ class HandTrackingNode(Node):
                 self._cal_samples = []
                 self.get_logger().info('Entered calibration mode')
         elif key == ord(' ') and self._cal_mode:
-            # 采样: 记录 curl + CP 差分 (correct - raw) 全部 5 指
+            # Space 键: 在校准模式下采样当前手势
+            # 记录 curl 值和 CP 差分 (gateway正确值 - 原始映射值) 用于构建修正表
             if result is not None:
                 landmarks = result["landmarks"]
                 if result["handedness"] == "Right":
@@ -442,7 +524,7 @@ class HandTrackingNode(Node):
                     raw_cp = landmarks_to_control_points(
                         landmarks, self._current_cp, 640, 480)
                     correct_cp = _fk_control_points(self._gateway_target_dof)
-                    # 全部 5 指的 3D delta
+                    # 计算全部 5 指的 3D delta（正确值 - 原始值）
                     cp_delta = [
                         (correct_cp[fi] - raw_cp[fi]).tolist()
                         for fi in range(5)
@@ -461,6 +543,7 @@ class HandTrackingNode(Node):
             else:
                 self.get_logger().warn('No hand detected - cannot sample')
 
+        # ---- 无手部检测时显示提示 ----
         if result is None:
             cv2.putText(frame, "No hand detected", (10, 30),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
@@ -469,18 +552,21 @@ class HandTrackingNode(Node):
             cv2.imshow('L10 Hand Tracking', frame)
             return
 
+        # ---- 关键点提取与镜像 ----
         landmarks = result["landmarks"]
         handedness = result["handedness"]
         fh, fw = frame.shape[:2]
 
-        # 右手沿画面中轴镜像
+        # 右手沿画面中轴 (x=0.5) 水平镜像，使屏幕左右与真实方向对应
         if handedness == "Right":
             landmarks = mirror_landmarks_x(landmarks)
 
-        # ---- 正常跟踪 (校准模式下也正常运行) ----
+        # ---- 弯曲度计算 ----
         curls = compute_finger_curls(landmarks)
 
-        # 控制点: 有校准模型用 raw_CP + delta, 否则用原始映射
+        # ---- 控制点计算: landmarks → DOF → FK → control_points ----
+        # 有校准模型时: raw_CP + 分段线性修正 delta
+        # 无校准模型时: 直接使用原始 DOF→FK 映射
         if self._cal_cp_models:
             raw_cp = landmarks_to_control_points(
                 landmarks, self._current_cp, fw, fh)
@@ -489,7 +575,7 @@ class HandTrackingNode(Node):
             targets = landmarks_to_control_points(
                 landmarks, self._current_cp, fw, fh)
 
-        # DEBUG: 每30帧输出一次
+        # ---- 调试日志: 每 30 帧输出一次 curl/lateral/CP_Y 数值 ----
         if not hasattr(self, '_dbg_cnt'):
             self._dbg_cnt = 0
         self._dbg_cnt += 1
@@ -505,7 +591,9 @@ class HandTrackingNode(Node):
                 f"lat=[{lat_idx:.0f},{lat_rng:.0f},{lat_lit:.0f}] "
                 f"CP_Y=[{targets[0][1]:.3f},{targets[1][1]:.3f},{targets[2][1]:.3f},{targets[3][1]:.3f},{targets[4][1]:.3f}]")
 
-        # EMA 平滑
+        # ---- EMA 指数移动平均平滑 (alpha=0.4) ----
+        # 公式: smooth = alpha * new + (1 - alpha) * prev
+        # alpha 越大跟踪越灵敏但越抖动，越小越平滑但延迟越大
         if self._smooth_cp is None:
             self._smooth_cp = [t.copy() for t in targets]
         else:
@@ -513,7 +601,7 @@ class HandTrackingNode(Node):
                 self._smooth_cp[i] = (
                     self._alpha * targets[i] + (1 - self._alpha) * self._smooth_cp[i])
 
-        # 发布控制点 (校准模式下不发布)
+        # ---- 发布控制点 (校准模式下暂停发布) ----
         if not self._cal_mode:
             cp_msg = PoseArray()
             cp_msg.header.stamp = self.get_clock().now().to_msg()
@@ -527,11 +615,12 @@ class HandTrackingNode(Node):
                 cp_msg.poses.append(p)
             self.pub_cp.publish(cp_msg)
 
-        # 相机 (校准模式下不发布)
+        # ---- 计算并发布相机命令 (校准模式下暂停发布) ----
         if not self._cal_mode:
             pts_3d = landmarks_to_3d(
                 [np.array(lm) for lm in landmarks], fw, fh)
             camera = compute_camera_cmd(pts_3d)
+            # 相机命令同样做 EMA 平滑
             if self._smooth_cam is None:
                 self._smooth_cam = camera[:]
             else:
@@ -542,7 +631,8 @@ class HandTrackingNode(Node):
             cam_msg.data = self._smooth_cam
             self.pub_camera.publish(cam_msg)
 
-        # 可视化 (用原始 landmarks)
+        # ---- OpenCV 可视化渲染 ----
+        # 用未镜像的原始 landmarks 绘制（因为 frame 已经做了水平翻转）
         draw_tracking(frame, result["landmarks"], handedness, self._smooth_cp, curls)
         if self._cal_mode:
             self._draw_cal_overlay(frame, landmarks)

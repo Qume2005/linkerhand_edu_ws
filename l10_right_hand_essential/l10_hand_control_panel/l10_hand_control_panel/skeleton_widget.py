@@ -38,7 +38,27 @@ CONTROL_POINTS = [
 
 
 class HandModelWidget(QWidget):
-    """MuJoCo 离屏渲染的手部模型交互控件"""
+    """MuJoCo 离屏渲染的手部 3D 模型交互控件 —— 支持指尖拖拽 IK 控制
+
+    使用 MuJoCo 引擎进行离屏渲染，将 3D 手部模型显示在 Qt 控件中。
+    用户可以直接拖拽指尖控制点来控制手指姿态，系统通过 IK (逆运动学)
+    将 2D 屏幕拖拽映射为 DOF 值变化。
+
+    交互方式:
+    - 左键拖拽指尖控制点: IK 求解，改变手指姿态
+    - 右键拖拽空白区域: 旋转相机视角
+    - 滚轮: 缩放相机距离
+
+    IK 求解策略:
+    - 1-DOF 手指 (中指): 均匀采样 + 黄金分割精化
+    - N-DOF 手指 (拇指/食指/无名指/小指): 网格采样 + Jacobian 精化
+    - 所有求解在屏幕空间进行，将 3D 投影误差最小化
+
+    Attributes:
+        on_dof_changed: DOF 变化回调 (由 ControlPanelWindow 设置)
+        on_camera_changed: 相机状态变化回调 (由 ControlPanelWindow 设置)
+        dof_values: 当前 10 DOF 值列表 (0-255)
+    """
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -131,7 +151,25 @@ class HandModelWidget(QWidget):
     # ==== 投影 ====
 
     def _project(self, pos_3d):
-        """3D 世界坐标 → 屏幕 QPointF"""
+        """3D 世界坐标 → 2D 屏幕 QPointF 投影
+
+        根据当前相机的 azimuth (方位角)、elevation (俯仰角) 和 distance (距离)，
+        构建 view 矩阵的 right/up/forward 基向量，执行透视投影。
+
+        投影步骤:
+        1. 从球坐标 (azimuth, elevation) 计算 forward 向量
+        2. cam_pos = lookat - distance * forward
+        3. 构建正交基: forward, right, up
+        4. 将世界坐标转到相机坐标系: x = dot(rel, right), y = dot(rel, up), z = dot(rel, forward)
+        5. 透视除法: sx = x * f / z, sy = y * f / z (f 为焦距)
+        6. 缩放到 widget 实际尺寸
+
+        Args:
+            pos_3d: 3D 世界坐标 (numpy 数组或列表)
+
+        Returns:
+            QPointF 或 None (如果点在相机后方则返回 None)
+        """
         azim = math.radians(self._cam.azimuth)
         elev = math.radians(self._cam.elevation)
         lookat = np.array(self._cam.lookat)
@@ -428,7 +466,21 @@ class HandModelWidget(QWidget):
         return (screen_a.x() - screen_b.x())**2 + (screen_a.y() - screen_b.y())**2
 
     def _ik_solve_1dof(self, arc, dof, geom_id, target_screen):
-        """1-DOF: 采样 + 黄金分割，搜索弧度范围内屏幕距离最小的解"""
+        """1-DOF 逆运动学求解 —— 均匀采样 + 黄金分割精化
+
+        针对只有 1 个 DOF 的手指 (中指)，在弧度范围内搜索屏幕距离最小的解。
+
+        求解流程:
+        1. 均匀采样 20 个点，找到屏幕距离最小的采样点
+        2. 在最佳采样点附近使用黄金分割搜索精化 (12 次迭代)
+        3. 最终取区间中点作为结果
+
+        Args:
+            arc: 当前 10 DOF 弧度值列表 (就地修改)
+            dof: 待求解的 DOF 索引
+            geom_id: MuJoCo geom ID (指尖对应的几何体)
+            target_screen: 目标屏幕坐标 (QPointF)
+        """
         lo, hi = L10_R_MIN[dof], L10_R_MAX[dof]
 
         # Phase 1: 均匀采样 20 点
@@ -478,7 +530,25 @@ class HandModelWidget(QWidget):
         arc[dof] = (a + b) / 2
 
     def _ik_solve_ndof(self, arc, dofs, n, geom_id, target_screen):
-        """Multi-DOF: 网格采样找全局最优起点 + Jacobian 精化"""
+        """多 DOF 逆运动学求解 —— 网格采样全局搜索 + Jacobian 精化
+
+        针对有 2-3 个 DOF 的手指 (拇指、食指、无名指、小指)，
+        在屏幕空间中求解使指尖投影最接近目标的弧度组合。
+
+        求解流程:
+        1. 网格采样: 在 N 维 DOF 空间中均匀采样 (2-DOF 约 100 点, 3-DOF 约 216 点)
+           对每个采样点执行 FK + 投影，找到屏幕距离最小的全局最优起点
+        2. Jacobian 精化: 从全局最优起点出发，使用阻尼最小二乘法迭代
+           构建屏幕空间的 2×N Jacobian 矩阵，求解最优增量方向
+           自适应阻尼 + 单步限幅 (关节范围的 20%)，防止过冲
+
+        Args:
+            arc: 当前 10 DOF 弧度值列表 (就地修改)
+            dofs: 待求解的 DOF 索引列表
+            n: DOF 数量 (2 或 3)
+            geom_id: MuJoCo geom ID (指尖对应的几何体)
+            target_screen: 目标屏幕坐标 (QPointF)
+        """
         # Phase 1: 网格采样 — 保证找到正确的收敛域
         budget = {1: 21, 2: 100, 3: 216}.get(n, 64)
         spa = int(round(budget ** (1.0 / n)))  # 2-DOF: 10(100点), 3-DOF: 6(216点)

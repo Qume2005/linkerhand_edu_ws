@@ -1,4 +1,32 @@
-"""Tool definitions for set_hand_dof in both OpenAI and Anthropic formats."""
+"""LLM 工具定义与系统提示模板 —— 连接自然语言与灵巧手 DOF 控制的桥梁。
+
+本模块定义了 LLM 可调用的三个工具（OpenAI 和 Anthropic 双格式），构建
+包含手部状态反馈的系统提示，以及为用户消息附加上下文信息。
+
+三工具定义
+----------
+1. **set_hand_dof** — 单次静态手势设置，10 个 DOF 值 + 可选 duration
+2. **queue_hand_actions** — 多步动作队列编排，支持循环播放，每步含
+   DOF + duration + pause
+3. **vector_calc** — 数学向量计算器，LLM 用它生成精确的 DOF 序列
+   （正弦波、线性渐变、缓动曲线等），避免手算出错
+
+系统提示模板
+------------
+``SYSTEM_PROMPT_TEMPLATE`` 定义了 LLM 的角色（灵巧手控制助手）、可用工具
+概要、当前手部 DOF 状态。每次发送请求前会根据最新的 DOF 值动态刷新。
+
+用户上下文构建
+--------------
+``build_user_context()`` 在每条用户消息前插入三列对比表：
+    LLM 上次发布值 | 当前目标值 | 实际硬件值
+帮助 LLM 理解手部当前状态、检测外部干预（如控制面板修改）、发现硬件阻塞。
+
+向量计算安全沙箱
+----------------
+``eval_vector()`` 使用受限命名空间执行用户提供的数学表达式（sin、cos、
+sqrt 等），禁止访问 ``__builtins__``，防止注入风险。
+"""
 
 # 10 个自由度名称 (对应 DOF0-DOF9, 0-255 范围)
 DOF_ORDER = [
@@ -470,21 +498,22 @@ def build_user_context(
     """Build context prepended to user messages.
 
     Three-column comparison: last LLM publish | current target | current actual.
-    - Last publish != target → target was changed externally (control panel / other node)
-    - Target != actual → hand is blocked or still converging
-    - No last publish → LLM has never issued a command
+    - Last publish != target -> target was changed externally (control panel / other node)
+    - Target != actual -> hand is blocked or still converging
+    - No last publish -> LLM has never issued a command
     """
     has_published = last_published_dof is not None
     lines = ["[System Feedback]"]
 
+    # 根据是否有 LLM 发布历史，决定表头是三列还是两列
     if has_published:
         lines.append(f"{'DOF':<16} {'LLM Pub':>7} {'Target':>7} {'Actual':>7}  Status")
     else:
         lines.append(f"{'DOF':<16} {'Target':>7} {'Actual':>7}  Status")
     lines.append("-" * 60)
 
-    any_target_drift = False
-    any_not_reached = False
+    any_target_drift = False   # 标记：目标值是否被外部修改
+    any_not_reached = False    # 标记：硬件是否未到达目标值
 
     for i, name in enumerate(DOF_ORDER):
         tgt = target_dof[i] if i < len(target_dof) else 0
@@ -493,18 +522,22 @@ def build_user_context(
         tags = []
 
         if has_published:
+            # 三列对比模式：LLM Pub | Target | Actual
             lp = last_published_dof[i] if i < len(last_published_dof) else tgt
             if lp != tgt:
+                # 第一列 != 第二列 → 目标值被外部修改（控制面板/其他节点）
                 any_target_drift = True
                 diff = _describe_diff(name, lp, tgt)
                 tags.append(f"target changed {diff}")
             if tgt != cur:
+                # 第二列 != 第三列 → 硬件阻塞或仍在收敛中
                 any_not_reached = True
                 diff = _describe_diff(name, tgt, cur)
                 tags.append(f"not reached {diff}")
             tag_str = " ".join(tags) if tags else "OK"
             lines.append(f"{name:<16} {lp:>7} {tgt:>7} {cur:>7}  {tag_str}")
         else:
+            # 两列模式（LLM 从未发过命令）：Target | Actual
             if tgt != cur:
                 any_not_reached = True
                 diff = _describe_diff(name, tgt, cur)
@@ -512,6 +545,7 @@ def build_user_context(
             tag_str = " ".join(tags) if tags else "OK"
             lines.append(f"{name:<16} {tgt:>7} {cur:>7}  {tag_str}")
 
+    # 底部汇总注释：帮助 LLM 快速理解整体状态
     lines.append("-" * 60)
     notes = []
     if not has_published:

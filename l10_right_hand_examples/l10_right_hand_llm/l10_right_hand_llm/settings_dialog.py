@@ -1,4 +1,21 @@
-"""PySide2 settings dialog for API configuration."""
+"""PySide2 设置对话框 —— LLM API 配置管理。
+
+提供图形化的 API 配置界面，支持：
+
+- **Provider 选择** — OpenAI 或 Anthropic，切换时自动填充默认 Base URL 和 Model
+- **API Key** — 密码输入框，安全存储
+- **Base URL** — 支持自定义代理/中转地址
+- **Model** — 模型名称（如 gpt-4o、claude-sonnet-4-20250514）
+
+配置以 JSON 格式持久化到工作目录的 ``llm_settings.json``（已被 .gitignore
+排除，避免密钥泄露）。提供 ``get_settings()`` 和 ``has_api_key()`` 两个
+静态方法供其他模块直接读取配置，无需实例化对话框。
+
+默认配置::
+
+    OpenAI:    base_url=https://api.openai.com/v1,  model=gpt-4o
+    Anthropic: base_url=https://api.anthropic.com,  model=claude-sonnet-4-20250514
+"""
 
 import json
 import os

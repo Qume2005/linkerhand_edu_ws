@@ -1,6 +1,19 @@
 """
-L10 Right Hand MuJoCo Simulation Node
-简化版：只支持 L10 右手
+L10 右手 MuJoCo 仿真 ROS2 节点
+
+提供与真实 CAN 总线驱动 (l10_right_hand_driver) **完全相同**的话题接口，
+使下游节点（gateway、面板、LLM 等）无需区分仿真与真实硬件。
+
+核心功能：
+- **关节状态仿真**：接收 0-255 DOF 命令，驱动 MuJoCo 物理引擎，反馈实际关节角度
+- **触觉数据仿真**：从 MuJoCo 接触力反算 5 指压力值（单点 + 12x6 矩阵 + 点云）
+- **手部信息仿真**：模拟 SDK 信息回报（版本号、速度、温度、故障码等）
+
+线程架构：
+- MuJoCo 仿真线程 (daemon)：独立步进物理引擎，按 topic_hz 频率发布状态
+- ROS2 spin 线程：处理控制命令回调和设置命令回调
+
+依赖：mujoco, numpy, linker_hand_description, hand_forward_kinematics
 """
 
 import os
@@ -97,7 +110,36 @@ def range_to_arc_l10_right(position_range):
 # ============================================================================
 
 class L10RightMujocoNode(Node):
+    """L10 右手 MuJoCo 仿真 ROS2 节点。
+
+    本节点作为仿真后端，提供与真实 CAN 总线驱动完全相同的 ROS2 话题接口。
+    内部运行 MuJoCo 物理引擎，在独立线程中以固定频率步进仿真并发布状态。
+
+    话题接口（与 l10_right_hand_driver 一致）：
+        发布:
+            - ``/cb_right_hand_state`` (JointState, 10 DOF 0-255)
+            - ``/cb_right_hand_info`` (String, JSON)
+            - ``/cb_right_hand_force`` (Float32MultiArray, is_touch 时)
+            - ``/cb_right_hand_matrix_touch`` (String, JSON)
+            - ``/cb_right_hand_matrix_touch_pc`` (PointCloud2)
+            - ``/cb_right_hand_matrix_touch_mass`` (String, JSON)
+        订阅:
+            - ``/cb_right_hand_control_cmd`` (JointState, 10 DOF 0-255)
+            - ``/cb_hand_setting_cmd`` (String, JSON)
+
+    ROS 参数:
+        - ``topic_hz`` (int, 默认 30): 状态发布频率 (Hz)
+        - ``is_touch`` (bool, 默认 True): 是否仿真触觉数据
+
+    Attributes:
+        model: MuJoCo 模型实例
+        data: MuJoCo 数据实例
+        ctrl_values: 当前 20 个执行器控制值（由命令回调更新）
+        finger_geom_map: geom_id -> 手指索引的映射表
+    """
+
     def __init__(self):
+        """初始化 MuJoCo 仿真节点：声明参数、加载模型、构建映射、启动仿真线程。"""
         super().__init__('l10_right_mujoco_node')
 
         # 声明参数
@@ -208,6 +250,9 @@ class L10RightMujocoNode(Node):
         self.ctrl_ranges = self.model.actuator_ctrlrange.copy()
 
         # 构建 geom -> 手指索引映射（用于接触力计算）
+        # 遍历所有 geom，检查其所属 body 名称是否在 FINGERTIP_BODIES 中。
+        # 若匹配，记录 geom_id -> finger_idx 的映射，后续计算接触力时
+        # 即可通过 geom_id 快速定位是哪根手指在接触。
         self.finger_geom_map = {}
         body_name_to_id = {}
         for i in range(self.model.nbody):
@@ -223,7 +268,12 @@ class L10RightMujocoNode(Node):
         sim_thread.start()
 
     def mujoco_thread(self):
-        """MuJoCo 仿真线程 (无头模式)"""
+        """MuJoCo 仿真线程（无头模式）。
+
+        在独立守护线程中持续运行，每 1ms 步进一次 MuJoCo 物理引擎，
+        按 ``topic_hz`` 频率调用 :meth:`publish_joint_states` 发布状态。
+        线程随 ROS2 关闭而退出。
+        """
         pub_rate = 1.0 / self.topic_hz
         last_pub_time = time.time()
         self.get_logger().info("MuJoCo simulation running (headless)...")
@@ -241,7 +291,12 @@ class L10RightMujocoNode(Node):
             time.sleep(0.001)
 
     def publish_joint_states(self):
-        """发布当前关节状态和实际仿真位姿 (0-255)"""
+        """发布当前关节状态和手部信息。
+
+        从 MuJoCo 仿真数据中读取 20 个关节角度，折叠为 10 DOF 后转换为
+        0-255 值域发布到 ``/cb_right_hand_state``。同时发布手部信息 JSON
+        和（如启用）触觉数据。
+        """
         now = self.get_clock().now().to_msg()
 
         # 从 MuJoCo 实际关节角度反推 0-255
@@ -270,7 +325,14 @@ class L10RightMujocoNode(Node):
             self.publish_touch_data(now)
 
     def compute_touch_data(self):
-        """从 MuJoCo 接触力计算各手指压力"""
+        """从 MuJoCo 接触力计算各手指压力数据。
+
+        遍历所有 MuJoCo 接触对，通过 ``finger_geom_map`` 判断接触是否
+        涉及指尖 geom。对每个指尖累加法向力，然后乘以缩放因子 (100.0)
+        得到 0-255 范围的压力值。
+
+        同时将总力均匀分配到 12x6 矩阵网格，模拟矩阵触觉传感器的输出。
+        """
         finger_forces = [0.0] * 5  # thumb, index, middle, ring, little
 
         for i in range(self.data.ncon):
@@ -381,7 +443,15 @@ class L10RightMujocoNode(Node):
         self.matrix_touch_pc_pub.publish(pc)
 
     def hand_cb(self, msg):
-        """处理控制命令回调（与 SDK hand_control_cb 对齐）"""
+        """处理关节控制命令回调（与 SDK hand_control_cb 对齐）。
+
+        接收 10 DOF 0-255 的位置命令，转换为弧度值后映射到 20 个
+        MuJoCo 执行器控制值（含 mimic 展开），写入 ``ctrl_values`` 供
+        仿真线程下次步进时应用。
+
+        Args:
+            msg: JointState 消息，position 含 10 个 DOF 值 (0-255)
+        """
         try:
             position = msg.position
             if len(position) >= 10:
@@ -397,7 +467,15 @@ class L10RightMujocoNode(Node):
             self.get_logger().error(f"Error in hand_cb: {e}")
 
     def hand_setting_cb(self, msg):
-        """处理设置命令回调（与 SDK hand_setting_cb 对齐）"""
+        """处理设置命令回调（与 SDK hand_setting_cb 对齐）。
+
+        支持 ``set_speed``、``set_max_torque_limits``、``clear_faults``、
+        ``set_electric_current`` 四种命令。仿真模式下大部分命令仅更新
+        ``hand_info`` 字典，不影响物理引擎行为。
+
+        Args:
+            msg: String 消息，data 字段为 JSON，含 ``setting_cmd`` 和 ``params``
+        """
         try:
             data = json.loads(msg.data)
             cmd = data.get("setting_cmd", "")

@@ -1,3 +1,21 @@
+"""RViz2 手部可视化启动文件。
+
+启动 4 个节点实现 L10 灵巧手的三维可视化：
+
+1. **static_transform_publisher** — 发布 world → base_link 静态坐标变换（单位变换）
+2. **robot_state_publisher** — 加载 URDF 模型并根据关节数据发布 TF 树
+3. **hand_viz_node** — 订阅 gateway 状态话题，将 DOF 值转换为 URDF 关节状态
+4. **rviz2** — 启动 RViz2 可视化界面，加载 hand_viz.rviz 配置文件
+
+RViz 配置文件位于 l10_right_hand_viz 包的 config/hand_viz.rviz，
+URDF 模型通过 linker_hand_description 包定位。
+
+使用示例
+--------
+::
+
+    ros2 launch l10_right_hand_viz hand_viz.launch.py
+"""
 import os
 from launch import LaunchDescription
 from launch_ros.actions import Node
