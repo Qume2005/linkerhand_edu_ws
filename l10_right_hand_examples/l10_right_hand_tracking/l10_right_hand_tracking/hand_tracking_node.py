@@ -49,9 +49,6 @@ FINGER_JOINTS = [
     [17, 18, 19, 20],  # little: MCP, PIP, DIP, TIP
 ]
 
-# MuJoCo FK 预计算 — 拇指位置插值用 (仅拇指)
-OPEN_CP_THUMB = np.array([0.076898, 0.078129, -0.012645])
-CLOSED_CP_THUMB = np.array([0.061497, -0.025504, 0.127239])
 
 # 相机内参
 CAMERA_MATRIX = np.array([[600, 0, 320], [0, 600, 240], [0, 0, 1]], dtype=np.float32)
@@ -150,11 +147,7 @@ def compute_finger_curls(landmarks):
         v1 = lm[joints[1]][:2] - lm[joints[0]][:2]  # 首段: e.g. MCP→PIP
         v2 = lm[joints[3]][:2] - lm[joints[2]][:2]  # 末段: e.g. DIP→TIP
         cos_a = np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2) + 1e-8)
-        curl = float(np.clip((1.0 - cos_a) / 2.0, 0.0, 1.0))
-        if finger_idx == 0 and curl > 0.0:
-            # 拇指 curl 天然偏小 (首尾段夹角变化不够), 开根号放大微小值
-            curl = float(np.clip(np.sqrt(curl), 0.0, 1.0))
-        curls.append(curl)
+        curls.append(float(np.clip((1.0 - cos_a) / 2.0, 0.0, 1.0)))
     return curls
 
 
@@ -192,8 +185,20 @@ def landmarks_to_raw_dof(landmarks):
     thumb_dx = landmarks[5][0] - landmarks[4][0]  # spread 时 > 0
     dof[1] = float(np.clip(255.0 * thumb_dx / mcp_span * 1.5, 0, 255))
 
-    # 拇指旋转: 保持默认
-    dof[9] = 41.0
+    # 拇指旋转: 从 CMC→MCP 与掌心方向的夹角估算 opposition 程度
+    cmc = np.array(landmarks[1][:2])
+    thumb_mcp = np.array(landmarks[2][:2])
+    wrist = np.array(landmarks[0][:2])
+    mid_mcp = np.array(landmarks[9][:2])
+    thumb_dir = thumb_mcp - cmc
+    palm_dir = mid_mcp - wrist
+    cos_angle = np.dot(thumb_dir, palm_dir) / (np.linalg.norm(thumb_dir) * np.linalg.norm(palm_dir) + 1e-8)
+    # cos_angle ≈ 1 → 拇指与掌心同向 (侧展, 低 roll)
+    # cos_angle ≈ -1 → 拇指与掌心反向 (对掌, 高 roll)
+    opposition = float(np.clip((1.0 - cos_angle) / 2.0, 0.0, 1.0))
+    # DIRECT[9]=-1: DOF=0→max_roll, DOF=255→no_roll
+    # opposition 高 → roll 大 → DOF 小
+    dof[9] = float(np.clip(255.0 * (1.0 - opposition), 0.0, 255.0))
     return dof
 
 
