@@ -40,6 +40,7 @@ from l10_hand_gateway.ik_solver import (
     compute_control_points_from_dof,
     compute_skeleton_from_dof,
 )
+from l10_hand_gateway.collision_guard import JointRuleGuard
 
 
 class L10HandGatewayNode(Node):
@@ -51,6 +52,16 @@ class L10HandGatewayNode(Node):
         self._target_dof = [255.0, 200.0, 255.0, 255.0, 255.0, 255.0, 180.0, 180.0, 180.0, 41.0]
         self._last_forwarded_dof = None  # 消抖：上次转发给后端的 DOF
         self._camera = [0.25, 0.0, 0.0, -1.0]  # [distance, nx, ny, nz]
+
+        # ---- 碰撞防护 ----
+        self.declare_parameter('collision_guard.enabled', True)
+        self._collision_guard = None
+        if self.get_parameter('collision_guard.enabled').get_parameter_value().bool_value:
+            try:
+                self._collision_guard = JointRuleGuard()
+            except FileNotFoundError:
+                self.get_logger().warn(
+                    "Collision tables not found, collision guard disabled")
 
         qos = QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE)
 
@@ -149,6 +160,7 @@ class L10HandGatewayNode(Node):
         if len(msg.position) < 10:
             return
         self._target_dof = [float(v) for v in msg.position[:10]]
+        self._apply_collision_guard()
         self._broadcast_target()
         self._forward_to_backend()
 
@@ -163,6 +175,7 @@ class L10HandGatewayNode(Node):
             ]))
         dof = inverse_skeleton_to_dof(orientations)
         self._target_dof = [max(0.0, min(255.0, v)) for v in dof]
+        self._apply_collision_guard()
         self._broadcast_target()
         self._forward_to_backend()
 
@@ -177,6 +190,7 @@ class L10HandGatewayNode(Node):
         cam_normal = np.array(self._camera[1:4]) if self._camera else None
         dof = ik_control_points(targets, self._target_dof, camera_normal=cam_normal)
         self._target_dof = [max(0.0, min(255.0, v)) for v in dof]
+        self._apply_collision_guard()
         self._broadcast_target()
         self._forward_to_backend()
 
@@ -196,6 +210,7 @@ class L10HandGatewayNode(Node):
         cam_normal = np.array(self._camera[1:4]) if self._camera else None
         dof = ik_control_points(targets, self._target_dof, camera_normal=cam_normal)
         self._target_dof = [max(0.0, min(255.0, v)) for v in dof]
+        self._apply_collision_guard()
         self._broadcast_target()
         self._forward_to_backend()
 
@@ -329,6 +344,15 @@ class L10HandGatewayNode(Node):
                 self._make_cp_array(cp_positions, stamp))
         except Exception:
             pass
+
+    def _apply_collision_guard(self):
+        """碰撞防护：修正危险 DOF 组合（在广播 target 之前执行）"""
+        if self._collision_guard is not None:
+            result = self._collision_guard.check(self._target_dof)
+            if result.violations:
+                self.get_logger().debug(
+                    f"Collision guard: {len(result.violations)} DOF clamped")
+            self._target_dof = result.safe_dof
 
     def _forward_to_backend(self):
         # 消抖：与上次转发的 DOF 比较，差分 < 3 的命令不转发
