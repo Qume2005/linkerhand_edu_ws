@@ -150,21 +150,77 @@ python3 scripts/fk_collision_analysis.py --finger index
 | 参数 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
 | `collision_guard.enabled` | bool | `true` | 启用/禁用碰撞防护 |
+| `tactile_guard` (YAML) | - | 见下方 | 触觉防护独立配置文件 |
 
-禁用后网关不加载查找表，命令直接透传。若 `collision_tables.json` 不存在，防护自动禁用并输出警告日志。
+禁用碰撞防护后网关不加载查找表，命令直接透传。若 `collision_tables.json` 不存在，碰撞防护自动禁用并输出警告日志。
+
+触觉防护通过独立配置文件 `config/tactile_guard.yaml` 管理，不使用 ROS 参数，修改后重启节点即生效。
 
 ### 工作流程
 
 ```
 前端命令 (DOF/Skeleton/CP) → 格式转换 → DOF
                                          ↓
-                                   碰撞防护修正
-                                   (ThumbRule + LateralRule)
+                                   碰撞防护修正 (ThumbRule + LateralRule)
+                                         ↓
+                                   触觉防护过滤 (冻结/回退)
                                          ↓
                                    safe_dof → debounce → 转发后端
 ```
 
 碰撞防护在所有命令回调中统一执行 (`_apply_collision_guard`)，在 debounce 和转发之前。
+
+## 触觉紧急停止
+
+网关内置触觉紧急停止模块，当力传感器检测到手指压力异常时，冻结或回退对应手指的弯曲 DOF，防止夹伤或损坏硬件。
+
+### 触发力源
+
+使用 `/cb_right_hand_matrix_touch` 话题，计算每根手指 12x6 压力矩阵的单格最大值作为触发依据。每根手指独立检测。阈值直接对应单格压力值，便于直观调参。
+
+### 配置文件
+
+触觉防护参数通过 `config/tactile_guard.yaml` 配置：
+
+```yaml
+# 是否启用触觉防护
+enabled: true
+
+# 触发阈值 — 力矩阵单格最大值 (0-255)
+# 0.1 = 矩阵任意一格非零即触发
+threshold: 0.1
+
+# 回退步数 (0=仅冻结, >0=向伸直方向回退 N 单位后冻结)
+retreat_units: 0.0
+
+# 冻结持续时间 (秒)
+freeze_duration: 5.0
+```
+
+修改后重启节点生效。
+
+### 手指→DOF 映射
+
+| 手指 | 弯曲 DOF (冻结目标) | 侧摆 DOF (不受影响) |
+|------|---------------------|---------------------|
+| 拇指 | DOF0 | DOF1, DOF9 |
+| 食指 | DOF2 | DOF6 |
+| 中指 | DOF3 | - |
+| 无名指 | DOF4 | DOF7 |
+| 小指 | DOF5 | DOF8 |
+
+冻结只锁定弯曲 DOF，侧摆不受影响。
+
+### 行为模式
+
+- **retreat_units = 0 (默认)**：纯冻结 — 手指弯曲 DOF 锁定在触发时的值，不允许继续弯曲，但允许伸直
+- **retreat_units > 0**：冻结 + 回退 — 手指弯曲 DOF 向伸直方向移动指定步数后冻结
+
+### 自动解除
+
+- **力下降**：法向力降到阈值 80% 以下时自动解除
+- **超时**：冻结超过 `freeze_duration` 后自动解除，若压力仍超阈值则立即重新冻结（无冷却期）
+- **手动重置**：通过代码调用 `reset()` 解除所有冻结
 
 ## 性能特征
 
@@ -177,16 +233,24 @@ python3 scripts/fk_collision_analysis.py --finger index
 ## 测试
 
 ```bash
-# 单元测试 (mock 查找表，无 FK 依赖)
+# 碰撞防护单元测试 (mock 查找表)
 python3 -m pytest l10_hand_gateway/test_collision_guard.py -v
+
+# 触觉防护单元测试
+python3 -m pytest l10_hand_gateway/test_tactile_guard.py -v
 
 # 集成测试 (真实查找表 + FK 验证)
 python3 -m pytest tests/test_gateway_integration.py -v
+
+# 全量测试
+python3 -m pytest l10_hand_gateway/test_collision_guard.py l10_hand_gateway/test_tactile_guard.py tests/test_gateway_integration.py -v
 ```
 
-单元测试使用构造的 mock 查找表，覆盖：ThumbRule 弯曲限制/对指回退、LateralRule 侧摆修正、邻域查询边界、输入校验、输出范围约束。
+碰撞防护单元测试 (18 个)：ThumbRule 弯曲限制/对指回退、LateralRule 侧摆修正、邻域查询边界、输入校验、输出范围约束。
 
-集成测试使用 `collision_tables.json` 和 FK 正运动学验证修正后的 DOF 确实不碰撞，覆盖：全握拳、拇指对指、半弯曲、张开手、OK 手势、捏合、拇指 vs 各手指独立碰撞、小指-无名指侧摆。
+触觉防护单元测试 (36 个)：冻结行为 (5 指)、回退行为、超时解除、力下降解除、手动重置、边界条件、矩阵解析 (6 个)。
+
+集成测试 (13 个)：使用 `collision_tables.json` 和 FK 验证修正后的 DOF 不碰撞。
 
 ## 依赖说明
 
@@ -207,6 +271,8 @@ l10_hand_gateway/
 ├── REPORT.md                        # 技术设计文档
 ├── package.xml                      # ROS 2 包描述
 ├── setup.py                         # Python 包配置
+├── config/
+│   └── tactile_guard.yaml           # 触觉防护配置 (独立文件，修改后重启生效)
 ├── resource/
 │   └── l10_hand_gateway             # ament 资源标记
 ├── scripts/
@@ -215,9 +281,11 @@ l10_hand_gateway/
 │   └── test_gateway_integration.py  # 集成测试 (FK + 真实查找表)
 └── l10_hand_gateway/
     ├── __init__.py
-    ├── gateway_node.py              # 网关节点 — 反向代理 + 命令分发 + 碰撞防护
+    ├── gateway_node.py              # 网关节点 — 反向代理 + 命令分发 + 安全防护
     ├── collision_guard.py           # 碰撞防护 — ThumbRule + LateralRule
     ├── collision_tables.json        # 预计算碰撞查找表
-    ├── test_collision_guard.py      # 单元测试 (mock 查找表)
+    ├── tactile_guard.py             # 触觉紧急停止 — 冻结/回退
+    ├── test_collision_guard.py      # 碰撞防护单元测试
+    ├── test_tactile_guard.py        # 触觉防护单元测试
     └── ik_solver.py                 # IK 求解器 — 网格采样 + Jacobian 精化
 ```

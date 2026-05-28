@@ -26,7 +26,9 @@ L10 Hand Gateway Node
 """
 
 import rclpy
+import json
 import math
+import os
 import numpy as np
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy
@@ -41,6 +43,7 @@ from l10_hand_gateway.ik_solver import (
     compute_skeleton_from_dof,
 )
 from l10_hand_gateway.collision_guard import JointRuleGuard
+from l10_hand_gateway.tactile_guard import TactileGuard
 
 
 class L10HandGatewayNode(Node):
@@ -62,6 +65,10 @@ class L10HandGatewayNode(Node):
             except FileNotFoundError:
                 self.get_logger().warn(
                     "Collision tables not found, collision guard disabled")
+
+        # ---- 触觉紧急停止 ----
+        self._tactile_guard = None
+        self._load_tactile_guard()
 
         qos = QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE)
 
@@ -148,6 +155,19 @@ class L10HandGatewayNode(Node):
 
     def _on_backend_matrix(self, msg):
         self._pub_matrix_touch.publish(msg)
+        if self._tactile_guard is not None:
+            try:
+                data = json.loads(msg.data)
+                max_values = [
+                    max((v for row in data.get("thumb_matrix", []) for v in row), default=0.0),
+                    max((v for row in data.get("index_matrix", []) for v in row), default=0.0),
+                    max((v for row in data.get("middle_matrix", []) for v in row), default=0.0),
+                    max((v for row in data.get("ring_matrix", []) for v in row), default=0.0),
+                    max((v for row in data.get("little_matrix", []) for v in row), default=0.0),
+                ]
+                self._tactile_guard.update_forces(max_values)
+            except Exception:
+                pass
 
     def _on_backend_mass(self, msg):
         self._pub_matrix_mass.publish(msg)
@@ -161,6 +181,7 @@ class L10HandGatewayNode(Node):
             return
         self._target_dof = [float(v) for v in msg.position[:10]]
         self._apply_collision_guard()
+        self._apply_tactile_guard()
         self._broadcast_target()
         self._forward_to_backend()
 
@@ -176,6 +197,7 @@ class L10HandGatewayNode(Node):
         dof = inverse_skeleton_to_dof(orientations)
         self._target_dof = [max(0.0, min(255.0, v)) for v in dof]
         self._apply_collision_guard()
+        self._apply_tactile_guard()
         self._broadcast_target()
         self._forward_to_backend()
 
@@ -191,6 +213,7 @@ class L10HandGatewayNode(Node):
         dof = ik_control_points(targets, self._target_dof, camera_normal=cam_normal)
         self._target_dof = [max(0.0, min(255.0, v)) for v in dof]
         self._apply_collision_guard()
+        self._apply_tactile_guard()
         self._broadcast_target()
         self._forward_to_backend()
 
@@ -211,6 +234,7 @@ class L10HandGatewayNode(Node):
         dof = ik_control_points(targets, self._target_dof, camera_normal=cam_normal)
         self._target_dof = [max(0.0, min(255.0, v)) for v in dof]
         self._apply_collision_guard()
+        self._apply_tactile_guard()
         self._broadcast_target()
         self._forward_to_backend()
 
@@ -345,6 +369,33 @@ class L10HandGatewayNode(Node):
         except Exception:
             pass
 
+    def _load_tactile_guard(self):
+        """从 config/tactile_guard.yaml 加载触觉防护配置"""
+        config_path = os.path.join(
+            os.path.dirname(__file__), '..', 'config', 'tactile_guard.yaml')
+        config = {}
+        if os.path.exists(config_path):
+            try:
+                import yaml
+                with open(config_path) as f:
+                    config = yaml.safe_load(f) or {}
+            except Exception as e:
+                self.get_logger().warn(
+                    f"Failed to load tactile guard config: {e}")
+
+        if not config.get('enabled', True):
+            return
+
+        self._tactile_guard = TactileGuard(
+            threshold=config.get('threshold', 0.1),
+            retreat_units=config.get('retreat_units', 0.0),
+            freeze_duration=config.get('freeze_duration', 5.0),
+        )
+        self.get_logger().info(
+            f"Tactile guard: threshold={config.get('threshold', 0.1)}, "
+            f"retreat={config.get('retreat_units', 0.0)}, "
+            f"duration={config.get('freeze_duration', 5.0)}s")
+
     def _apply_collision_guard(self):
         """碰撞防护：修正危险 DOF 组合（在广播 target 之前执行）"""
         if self._collision_guard is not None:
@@ -352,6 +403,15 @@ class L10HandGatewayNode(Node):
             if result.violations:
                 self.get_logger().debug(
                     f"Collision guard: {len(result.violations)} DOF clamped")
+            self._target_dof = result.safe_dof
+
+    def _apply_tactile_guard(self):
+        """触觉防护：冻结/回退压力过高的手指（在碰撞防护之后执行）"""
+        if self._tactile_guard is not None:
+            result = self._tactile_guard.filter(self._target_dof)
+            if result.frozen_fingers:
+                self.get_logger().debug(
+                    f"Tactile guard: fingers {result.frozen_fingers} frozen")
             self._target_dof = result.safe_dof
 
     def _forward_to_backend(self):
