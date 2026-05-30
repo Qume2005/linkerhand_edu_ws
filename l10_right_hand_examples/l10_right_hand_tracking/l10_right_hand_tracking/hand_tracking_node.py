@@ -591,7 +591,7 @@ class HandTrackingNode(Node):
             lat_idx = min(255.0, max(0.0, 255.0 * (mid_x - landmarks[8][0]) * lat_s))
             lat_rng = min(255.0, max(0.0, 255.0 * (landmarks[16][0] - mid_x) * lat_s))
             lat_lit = min(255.0, max(0.0, 255.0 * (landmarks[20][0] - mid_x) * lat_s))
-            self.get_logger().info(
+            self.get_logger().debug(
                 f"curl=[{curls[0]:.2f},{curls[1]:.2f},{curls[2]:.2f},{curls[3]:.2f},{curls[4]:.2f}] "
                 f"lat=[{lat_idx:.0f},{lat_rng:.0f},{lat_lit:.0f}] "
                 f"CP_Y=[{targets[0][1]:.3f},{targets[1][1]:.3f},{targets[2][1]:.3f},{targets[3][1]:.3f},{targets[4][1]:.3f}]")

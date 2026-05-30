@@ -16,7 +16,7 @@ import json
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
-from std_msgs.msg import Float32MultiArray, String
+from std_msgs.msg import Float32, Float32MultiArray, String
 
 from PySide2.QtCore import Qt, Signal, QRectF, QPointF
 from PySide2.QtGui import QPainter, QPen, QBrush, QColor, QPolygonF, QFont
@@ -137,6 +137,108 @@ class DualSlider(QWidget):
         self._draw_diamond(p, wx, cy, self.INDICATOR_HW, self.INDICATOR_HH,
                            COLOR_WHITE_FILL, COLOR_WHITE_OUTLINE)
 
+        p.end()
+
+    def _draw_diamond(self, painter, cx, cy, hw, hh, fill, outline):
+        poly = QPolygonF([
+            QPointF(cx, cy - hh),
+            QPointF(cx + hw, cy),
+            QPointF(cx, cy + hh),
+            QPointF(cx - hw, cy),
+        ])
+        painter.setPen(QPen(QColor(outline), 1))
+        painter.setBrush(QBrush(QColor(fill)))
+        painter.drawPolygon(poly)
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self._dragging = True
+            self._apply_mouse(event.x())
+
+    def mouseMoveEvent(self, event):
+        if self._dragging:
+            self._apply_mouse(event.x())
+
+    def mouseReleaseEvent(self, event):
+        self._dragging = False
+
+    def _apply_mouse(self, x):
+        val = self._x_to_val(x)
+        self._target = val
+        self.update()
+        self.valueChanged.emit()
+
+
+class SpeedSlider(QWidget):
+    """单指示器速度限制滑块 — 白色菱形 + 填充色条 (0-100%)
+
+    填充色从橙（慢）渐变到绿（快），与 DualSlider 视觉风格一致。
+    """
+    valueChanged = Signal()
+
+    TROUGH_PAD = 10
+    INDICATOR_HW = 6
+    INDICATOR_HH = 9
+
+    def __init__(self, parent=None, val_range=(0, 100)):
+        super().__init__(parent)
+        self.val_min, self.val_max = val_range
+        self._target = 100.0
+        self._dragging = False
+        self.setFixedHeight(22)
+        self.setMinimumWidth(120)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.setCursor(Qt.PointingHandCursor)
+
+    def _val_to_x(self, val):
+        pad = self.TROUGH_PAD
+        w = self.width()
+        frac = (val - self.val_min) / (self.val_max - self.val_min)
+        return pad + frac * (w - 2 * pad)
+
+    def _x_to_val(self, x):
+        pad = self.TROUGH_PAD
+        w = self.width()
+        frac = (x - pad) / (w - 2 * pad)
+        frac = max(0.0, min(1.0, frac))
+        return self.val_min + frac * (self.val_max - self.val_min)
+
+    def set_target(self, val):
+        self._target = max(self.val_min, min(self.val_max, float(val)))
+        self.update()
+
+    def get_target_int(self):
+        return int(round(self._target))
+
+    def paintEvent(self, event):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        h = self.height()
+        cy = h / 2.0
+        pad = self.TROUGH_PAD
+        w = self.width()
+
+        # 槽道背景
+        p.setPen(Qt.NoPen)
+        p.setBrush(QBrush(QColor(COLOR_TROUGH)))
+        trough_rect = QRectF(pad, cy - 2, w - 2 * pad, 4)
+        p.drawRoundedRect(trough_rect, 2, 2)
+
+        # 填充色条 (橙→绿渐变)
+        tx = self._val_to_x(self._target)
+        if tx > pad + 1:
+            pct = self._target / self.val_max
+            fill_color = QColor(
+                int(255 * pct),
+                int(200 * (1 - pct)),
+                50,
+            )
+            p.setBrush(QBrush(fill_color))
+            p.drawRoundedRect(QRectF(pad, cy - 2, tx - pad, 4), 2, 2)
+
+        # 白色菱形指示器
+        self._draw_diamond(p, tx, cy, self.INDICATOR_HW, self.INDICATOR_HH,
+                           COLOR_WHITE_FILL, COLOR_WHITE_OUTLINE)
         p.end()
 
     def _draw_diamond(self, painter, cx, cy, hw, hh, fill, outline):
@@ -416,6 +518,9 @@ class ControlPanelNode(Node):
         self.camera_pub = self.create_publisher(
             Float32MultiArray, '/l10_gateway/cmd/camera', 10
         )
+        self.speed_limit_pub = self.create_publisher(
+            Float32, '/l10_gateway/cmd/speed_limit', 10
+        )
 
         # 订阅: 网关广播的当前/目标状态
         self.create_subscription(
@@ -439,10 +544,16 @@ class ControlPanelNode(Node):
         self.on_tactile_matrix = None
         self.on_tactile_mass = None
         self.on_camera_state = None
+        self.on_speed_limit = None
 
         # 订阅: 网关广播的相机状态
         self.create_subscription(
             Float32MultiArray, '/l10_gateway/camera', self._camera_cb, 10
+        )
+
+        # 订阅: 网关广播的速度限制
+        self.create_subscription(
+            Float32, '/l10_gateway/speed_limit', self._speed_limit_cb, 10
         )
 
         self.get_logger().info("L10 Control Panel Node initialized (gateway mode)")
@@ -459,6 +570,12 @@ class ControlPanelNode(Node):
         msg = Float32MultiArray()
         msg.data = [float(v) for v in camera_data]
         self.camera_pub.publish(msg)
+
+    def publish_speed_limit(self, percentage):
+        """发布速度限制百分比到网关 (0-100, 100=不限)"""
+        msg = Float32()
+        msg.data = float(percentage)
+        self.speed_limit_pub.publish(msg)
 
     def _current_cb(self, msg):
         if len(msg.position) < 10:
@@ -486,6 +603,10 @@ class ControlPanelNode(Node):
         if len(msg.data) >= 4 and self.on_camera_state:
             self.on_camera_state(list(msg.data[:4]))
 
+    def _speed_limit_cb(self, msg):
+        if self.on_speed_limit:
+            self.on_speed_limit(float(msg.data))
+
 
 class _StateSignal(QWidget):
     """跨线程信号中转控件 —— 将 ROS spin 线程的状态更新安全传递到 Qt 主线程
@@ -499,6 +620,7 @@ class _StateSignal(QWidget):
     tactile_matrix_received = Signal(str)
     tactile_mass_received = Signal(str)
     camera_received = Signal(list)
+    speed_limit_received = Signal(float)
 
     def __init__(self):
         super().__init__()
@@ -530,6 +652,7 @@ class ControlPanelWindow(QWidget):
         self._state_signal.tactile_matrix_received.connect(self._apply_tactile_matrix)
         self._state_signal.tactile_mass_received.connect(self._apply_tactile_mass)
         self._state_signal.camera_received.connect(self._apply_camera_state)
+        self._state_signal.speed_limit_received.connect(self._apply_speed_limit)
         self.setWindowTitle("L10 Hand Control Panel")
         self.setStyleSheet(f"""
             QWidget {{ background: {COLOR_BG}; color: {COLOR_TEXT}; }}
@@ -627,10 +750,30 @@ class ControlPanelWindow(QWidget):
         line2.setStyleSheet("color: #333355;")
         left.addWidget(line2)
 
+        # 速度限制滑块
+        speed_row = QHBoxLayout()
+        speed_row.setSpacing(8)
+        speed_lbl = QLabel("速度限制:")
+        speed_lbl.setStyleSheet(f"color: {COLOR_TEXT_DIM};")
+        speed_row.addWidget(speed_lbl)
+
+        self._speed_slider = SpeedSlider(val_range=(0, 100))
+        self._speed_slider.set_target(75)  # 默认 75%
+        self._speed_slider.valueChanged.connect(self._on_speed_slider)
+        speed_row.addWidget(self._speed_slider, stretch=1)
+
+        self._speed_label = QLabel("75%")
+        self._speed_label.setFixedWidth(40)
+        self._speed_label.setAlignment(Qt.AlignCenter)
+        self._speed_label.setFont(QFont("Monospace", 11))
+        self._speed_label.setStyleSheet(f"color: {COLOR_TEXT_DIM};")
+        speed_row.addWidget(self._speed_label)
+        left.addLayout(speed_row)
+
         # 操作按钮
         btn_row = QHBoxLayout()
         btn_row.setSpacing(10)
-        for text, fn in [("张开手", self.open_hand), ("握拳", self.close_hand), ("复位", self.reset_hand)]:
+        for text, fn in [("抓取", self.close_hand), ("张开", self.open_hand), ("复位", self.reset_hand)]:
             b = QPushButton(text)
             b.clicked.connect(fn)
             btn_row.addWidget(b)
@@ -693,6 +836,7 @@ class ControlPanelWindow(QWidget):
         node.on_tactile_matrix = self._ros_tactile_matrix_update
         node.on_tactile_mass = self._ros_tactile_mass_update
         node.on_camera_state = self._ros_camera_update
+        node.on_speed_limit = self._ros_speed_limit_update
 
     def _ros_current_update(self, values):
         """从 ROS spin 线程调用, 通过信号传递到 Qt 主线程"""
@@ -710,6 +854,9 @@ class ControlPanelWindow(QWidget):
 
     def _ros_camera_update(self, camera_data):
         self._state_signal.camera_received.emit(camera_data)
+
+    def _ros_speed_limit_update(self, pct):
+        self._state_signal.speed_limit_received.emit(pct)
 
     def _apply_current_state(self, values):
         """更新灰色指示器 — 当前位姿, 不发布"""
@@ -747,6 +894,17 @@ class ControlPanelWindow(QWidget):
 
     def _apply_camera_state(self, camera_data):
         self.skeleton.apply_camera_state(camera_data)
+
+    def _apply_speed_limit(self, pct):
+        """从网关同步速度限制值 — 不重发布"""
+        if self._syncing:
+            return
+        self._syncing = True
+        try:
+            self._speed_slider.set_target(pct)
+            self._speed_label.setText(f"{int(round(pct))}%")
+        finally:
+            self._syncing = False
 
     def _update_tactile_display(self):
         matrix = getattr(self, '_latest_matrix', None)
@@ -790,6 +948,15 @@ class ControlPanelWindow(QWidget):
         """相机变化回调 — 发布到网关"""
         if self.ros_node:
             self.ros_node.publish_camera(camera_data)
+
+    def _on_speed_slider(self):
+        """用户拖动速度滑块 → 发布到网关"""
+        if self._syncing:
+            return
+        pct = self._speed_slider.get_target_int()
+        self._speed_label.setText(f"{pct}%")
+        if self.ros_node:
+            self.ros_node.publish_speed_limit(pct)
 
     def _set_all(self, values):
         """用户操作 (按钮/预设) → 设置所有滑块 + 发布"""

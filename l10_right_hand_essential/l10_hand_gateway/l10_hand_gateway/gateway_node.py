@@ -34,7 +34,7 @@ from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import JointState
 from geometry_msgs.msg import PoseArray, Pose
-from std_msgs.msg import Float32MultiArray, String
+from std_msgs.msg import Float32, Float32MultiArray, String
 
 from l10_hand_gateway.ik_solver import (
     inverse_skeleton_to_dof,
@@ -44,6 +44,7 @@ from l10_hand_gateway.ik_solver import (
 )
 from l10_hand_gateway.collision_guard import JointRuleGuard
 from l10_hand_gateway.tactile_guard import TactileGuard
+from l10_hand_gateway.speed_limiter import SpeedLimiter
 
 
 class L10HandGatewayNode(Node):
@@ -70,6 +71,12 @@ class L10HandGatewayNode(Node):
         self._tactile_guard = None
         self._load_tactile_guard()
 
+        # ---- 全局速度限制 ----
+        self._desired_dof = list(self._target_dof)  # 控制源原始目标
+        self._speed_limiter = SpeedLimiter()
+        self._speed_limiter.set_from_percentage(75.0)  # 默认 75%
+        self._speed_limiter.reset(self._target_dof)
+
         qos = QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE)
 
         # ---- 广播发布器 (7 个) ----
@@ -92,6 +99,10 @@ class L10HandGatewayNode(Node):
         self._pub_backend_cmd = self.create_publisher(
             JointState, '/cb_right_hand_control_cmd', qos)
 
+        # ---- 速度限制广播 ----
+        self._pub_speed_limit = self.create_publisher(
+            Float32, '/l10_gateway/speed_limit', qos)
+
         # ---- 触觉传感器广播发布器 (3 个) ----
         self._pub_force = self.create_publisher(
             Float32MultiArray, '/l10_gateway/sensor/force', qos)
@@ -113,6 +124,8 @@ class L10HandGatewayNode(Node):
             Float32MultiArray, '/l10_gateway/cmd/camera', self._on_cmd_camera, qos)
         self.create_subscription(
             Float32MultiArray, '/l10_gateway/cmd/camera_diff', self._on_cmd_camera_diff, qos)
+        self.create_subscription(
+            Float32, '/l10_gateway/cmd/speed_limit', self._on_cmd_speed_limit, qos)
 
         # ---- 后端状态订阅 ----
         self.create_subscription(
@@ -131,10 +144,16 @@ class L10HandGatewayNode(Node):
         self._broadcast_target()
         self._broadcast_camera()
         self._forward_to_backend()
+        self._broadcast_speed_limit()
+
+        # ---- 速度限制驱动定时器 (30 Hz) ----
+        # 限速激活时，定时器持续推动 _target_dof 向 _desired_dof 靠拢
+        self._speed_timer = self.create_timer(
+            1.0 / 30.0, self._on_speed_timer)
 
         self.get_logger().info(
             "L10 Hand Gateway started. "
-            f"Broadcasting 10 topics, subscribing 6 cmd + 4 backend.")
+            f"Broadcasting 10 topics, subscribing 7 cmd + 4 backend.")
 
     # ====================================================================
     # 后端状态回调 → 广播 current/*
@@ -179,7 +198,8 @@ class L10HandGatewayNode(Node):
     def _on_cmd_dof(self, msg):
         if len(msg.position) < 10:
             return
-        self._target_dof = [float(v) for v in msg.position[:10]]
+        self._desired_dof = [float(v) for v in msg.position[:10]]
+        self._apply_speed_limit()
         self._apply_collision_guard()
         self._apply_tactile_guard()
         self._broadcast_target()
@@ -195,7 +215,8 @@ class L10HandGatewayNode(Node):
                 pose.orientation.y, pose.orientation.z,
             ]))
         dof = inverse_skeleton_to_dof(orientations)
-        self._target_dof = [max(0.0, min(255.0, v)) for v in dof]
+        self._desired_dof = [max(0.0, min(255.0, v)) for v in dof]
+        self._apply_speed_limit()
         self._apply_collision_guard()
         self._apply_tactile_guard()
         self._broadcast_target()
@@ -211,7 +232,8 @@ class L10HandGatewayNode(Node):
             ]))
         cam_normal = np.array(self._camera[1:4]) if self._camera else None
         dof = ik_control_points(targets, self._target_dof, camera_normal=cam_normal)
-        self._target_dof = [max(0.0, min(255.0, v)) for v in dof]
+        self._desired_dof = [max(0.0, min(255.0, v)) for v in dof]
+        self._apply_speed_limit()
         self._apply_collision_guard()
         self._apply_tactile_guard()
         self._broadcast_target()
@@ -232,7 +254,8 @@ class L10HandGatewayNode(Node):
             targets.append(current_cp[i] + diff)
         cam_normal = np.array(self._camera[1:4]) if self._camera else None
         dof = ik_control_points(targets, self._target_dof, camera_normal=cam_normal)
-        self._target_dof = [max(0.0, min(255.0, v)) for v in dof]
+        self._desired_dof = [max(0.0, min(255.0, v)) for v in dof]
+        self._apply_speed_limit()
         self._apply_collision_guard()
         self._apply_tactile_guard()
         self._broadcast_target()
@@ -413,6 +436,44 @@ class L10HandGatewayNode(Node):
                 self.get_logger().debug(
                     f"Tactile guard: fingers {result.frozen_fingers} frozen")
             self._target_dof = result.safe_dof
+
+    def _apply_speed_limit(self):
+        """速度限制：限制每个 DOF 的变化速率"""
+        if self._speed_limiter.is_limited:
+            result = self._speed_limiter.advance(self._desired_dof)
+            self._target_dof = result.dof
+        else:
+            self._target_dof = list(self._desired_dof)
+
+    def _on_speed_timer(self):
+        """定时器回调：限速激活时持续推动 target 向 desired 靠拢"""
+        if not self._speed_limiter.is_limited:
+            return
+        result = self._speed_limiter.advance(self._desired_dof)
+        if not result.active:
+            return
+        self._target_dof = result.dof
+        self._apply_collision_guard()
+        self._apply_tactile_guard()
+        self._broadcast_target()
+        self._forward_to_backend()
+
+    def _on_cmd_speed_limit(self, msg):
+        """速度限制命令: Float32, 值 0-100 (百分比, 100=不限)"""
+        was_limited = self._speed_limiter.is_limited
+        pct = max(0.0, min(100.0, msg.data))
+        self._speed_limiter.set_from_percentage(pct)
+        # 从无限速切换到有限速时，将内部位置同步到当前 target
+        if not was_limited and self._speed_limiter.is_limited:
+            self._speed_limiter.reset(self._target_dof)
+        self._broadcast_speed_limit()
+        self.get_logger().debug(f"Speed limit set to {pct:.0f}%")
+
+    def _broadcast_speed_limit(self):
+        """广播当前速度限制百分比"""
+        msg = Float32()
+        msg.data = self._speed_limiter.get_percentage()
+        self._pub_speed_limit.publish(msg)
 
     def _forward_to_backend(self):
         # 消抖：与上次转发的 DOF 比较，差分 < 3 的命令不转发
