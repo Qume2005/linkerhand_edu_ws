@@ -146,10 +146,10 @@ class L10HandGatewayNode(Node):
         self._forward_to_backend()
         self._broadcast_speed_limit()
 
-        # ---- 速度限制驱动定时器 (30 Hz) ----
+        # ---- 速度限制驱动定时器 (60 Hz) ----
         # 限速激活时，定时器持续推动 _target_dof 向 _desired_dof 靠拢
         self._speed_timer = self.create_timer(
-            1.0 / 30.0, self._on_speed_timer)
+            1.0 / 60.0, self._on_speed_timer)
 
         self.get_logger().info(
             "L10 Hand Gateway started. "

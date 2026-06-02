@@ -104,12 +104,6 @@ pip3 install --break-system-packages \
 ```bash
 # 安装 SocketCAN 工具
 sudo apt install -y can-utils
-
-# 配置 CAN 接口（1Mbps 波特率）
-sudo ip link set can0 up type can bitrate 1000000
-
-# 验证
-ip link show can0
 ```
 
 ## 快速开始
@@ -150,6 +144,7 @@ source install/setup.bash
 ros2 launch l10_right_hand_bootstrap sim.launch.py
 
 # 真机模式（CAN 驱动 + GUI + RViz2）
+sudo ip link set can0 up type can bitrate 1000000 && ip link show can0  # 配置 CAN 接口（1Mbps 波特率）
 ros2 launch l10_right_hand_bootstrap real.launch.py can_port:=can0 is_touch:=true topic_hz:=30
 
 # LLM 自然语言控制（含仿真启动）
