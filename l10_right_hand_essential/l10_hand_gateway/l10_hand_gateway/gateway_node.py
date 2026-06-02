@@ -45,6 +45,7 @@ from l10_hand_gateway.ik_solver import (
 from l10_hand_gateway.collision_guard import JointRuleGuard
 from l10_hand_gateway.tactile_guard import TactileGuard
 from l10_hand_gateway.speed_limiter import SpeedLimiter
+from l10_hand_gateway.motion_planner import MotionPlanner
 
 
 class L10HandGatewayNode(Node):
@@ -75,7 +76,9 @@ class L10HandGatewayNode(Node):
         self._desired_dof = list(self._target_dof)  # 控制源原始目标
         self._speed_limiter = SpeedLimiter()
         self._speed_limiter.set_from_percentage(75.0)  # 默认 75%
-        self._speed_limiter.reset(self._target_dof)
+        self._motion_planner = MotionPlanner(
+            collision_guard=self._collision_guard)
+        self._motion_planner.reset(self._target_dof)
 
         qos = QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE)
 
@@ -146,10 +149,12 @@ class L10HandGatewayNode(Node):
         self._forward_to_backend()
         self._broadcast_speed_limit()
 
-        # ---- 速度限制驱动定时器 (60 Hz) ----
-        # 限速激活时，定时器持续推动 _target_dof 向 _desired_dof 靠拢
+        # ---- 速度限制驱动定时器 ----
+        # 频率由 topic_hz 参数控制，与底层驱动同步
+        self.declare_parameter('topic_hz', 60)
+        _hz = self.get_parameter('topic_hz').get_parameter_value().integer_value
         self._speed_timer = self.create_timer(
-            1.0 / 60.0, self._on_speed_timer)
+            1.0 / max(_hz, 1), self._on_speed_timer)
 
         self.get_logger().info(
             "L10 Hand Gateway started. "
@@ -438,9 +443,10 @@ class L10HandGatewayNode(Node):
             self._target_dof = result.safe_dof
 
     def _apply_speed_limit(self):
-        """速度限制：限制每个 DOF 的变化速率"""
+        """速度限制：MotionPlanner 样条轨迹规划"""
         if self._speed_limiter.is_limited:
-            result = self._speed_limiter.advance(self._desired_dof)
+            result = self._motion_planner.advance(
+                self._desired_dof, self._speed_limiter.max_speed)
             self._target_dof = result.dof
         else:
             self._target_dof = list(self._desired_dof)
@@ -449,7 +455,8 @@ class L10HandGatewayNode(Node):
         """定时器回调：限速激活时持续推动 target 向 desired 靠拢"""
         if not self._speed_limiter.is_limited:
             return
-        result = self._speed_limiter.advance(self._desired_dof)
+        result = self._motion_planner.advance(
+            self._desired_dof, self._speed_limiter.max_speed)
         if not result.active:
             return
         self._target_dof = result.dof
@@ -463,9 +470,9 @@ class L10HandGatewayNode(Node):
         was_limited = self._speed_limiter.is_limited
         pct = max(0.0, min(100.0, msg.data))
         self._speed_limiter.set_from_percentage(pct)
-        # 从无限速切换到有限速时，将内部位置同步到当前 target
+        # 从无限速切换到有限速时，将规划器位置同步到当前 target
         if not was_limited and self._speed_limiter.is_limited:
-            self._speed_limiter.reset(self._target_dof)
+            self._motion_planner.reset(self._target_dof)
         self._broadcast_speed_limit()
         self.get_logger().debug(f"Speed limit set to {pct:.0f}%")
 

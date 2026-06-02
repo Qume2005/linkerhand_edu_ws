@@ -5,7 +5,7 @@ launch: ros2 launch l10_right_hand_bootstrap real.launch.py
 可选参数:
   can_port  — CAN 接口, 默认 can0
   is_touch  — 触觉传感器, 默认 true
-  topic_hz  — 驱动频率, 默认 30
+  topic_hz  — 控制频率 (Hz), 同时控制网关插值和驱动发送, 默认 60
 """
 import os
 from launch import LaunchDescription
@@ -41,7 +41,7 @@ def generate_launch_description():
         # 可选参数
         DeclareLaunchArgument('can_port', default_value='can0'),
         DeclareLaunchArgument('is_touch', default_value='true'),
-        DeclareLaunchArgument('topic_hz', default_value='30'),
+        DeclareLaunchArgument('topic_hz', default_value='60'),
 
         # 阶段 1: 后端
         driver_node,
@@ -62,6 +62,9 @@ def generate_launch_description():
                     package='l10_hand_gateway',
                     executable='l10_gateway_node',
                     name='l10_hand_gateway',
+                    parameters=[{
+                        'topic_hz': LaunchConfiguration('topic_hz'),
+                    }],
                     output='screen',
                 ),
             ],
