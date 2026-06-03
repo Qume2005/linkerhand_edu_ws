@@ -3,6 +3,19 @@
 L10 Hand Gateway Node
 控制 topic 反向代理 + 状态 topic 代理服务
 
+处理管道:
+  desired_dof (原始命令)
+      ↓
+  SpeedLimiter         纯速度映射：0-100% → max_speed
+      ↓
+  MotionPlanner        五次样条轨迹生成 + 拇指避碰路径
+      ↓                 消费 max_speed，产出平滑轨迹
+  CollisionGuard       碰撞防护（安全兜底）
+      ↓
+  TactileGuard         触觉紧急停止
+      ↓
+  target_dof → 硬件
+
 广播:
   /l10_gateway/camera              Float32MultiArray [distance, nx, ny, nz]
   /l10_gateway/current/dof         JointState (10 DOF 0-255)
@@ -77,7 +90,7 @@ class L10HandGatewayNode(Node):
         self._speed_limiter = SpeedLimiter()
         self._speed_limiter.set_from_percentage(75.0)  # 默认 75%
         self._motion_planner = MotionPlanner(
-            collision_guard=self._collision_guard)
+            collision_guard=self._collision_guard.thumb_rule if self._collision_guard else None)
         self._motion_planner.reset(self._target_dof)
 
         qos = QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE)

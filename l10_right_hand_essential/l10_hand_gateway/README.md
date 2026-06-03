@@ -103,6 +103,41 @@ IK 求解器位于 `ik_solver.py`，用于将 5 个指尖目标位置转换为 1
 
 差分更新只传输 4 个浮点数 `[delta_distance, qx, qy, qz]`，其中 `qw` 通过 `sqrt(1 - qx² - qy² - qz²)` 恢复，节省带宽。
 
+## 全局速度限制
+
+网关内置全局速度限制，通过控制面板滑块实时调节。速度限制作用于整个处理管道中的轨迹规划阶段。
+
+### 架构
+
+速度限制分为两个独立模块：
+
+- **SpeedLimiter** (`speed_limiter.py`)：纯速度映射层，将 0-100% 百分比映射为 `max_speed` (units/s)。100% = 不限速，50% = 120 units/s，0% = 冻结。
+- **MotionPlanner** (`motion_planner.py`)：五次样条（min-jerk）轨迹生成器。消费 `max_speed`，为 10 DOF 生成平滑的点到点运动轨迹。
+
+### 五次样条插值
+
+采用零初速/零终速五次多项式 `s(τ) = 10τ³ − 15τ⁴ + 6τ⁵`，具有以下特性：
+
+- 无抖动、无过调（半隐式 Euler 积分误差的根源被消除）
+- 中途目标变化时从当前 (position, velocity) 平滑重规划
+- 轨迹时长 T = 1.875 × |Δ| / max_speed，保证峰值速度不超过 max_speed
+
+### 拇指碰撞避让路径
+
+当拇指弯曲目标 (DOF0) 存在碰撞风险时，MotionPlanner 内部的 `_ThumbPathPlanner` 执行分阶段路径规划：
+
+1. **Phase 1（避让）**：DOF1/DOF9 向安全中间值移动，DOF0 保持不变
+2. **Phase 2（弯曲）**：Phase 1 完成后，DOF0 向目标移动
+
+安全中间值通过搜索碰撞查找表找到：在 DOF1/DOF9 采样网格上寻找允许目标 DOF0 的最近安全点。
+
+### ROS 参数
+
+| 参数 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `topic_hz` | int | `60` | 网关控制频率 (Hz)，同时控制样条轨迹推进和命令转发频率 |
+| `collision_guard.enabled` | bool | `true` | 启用/禁用碰撞防护 |
+
 ## 碰撞防护
 
 网关内置基于正运动学 (FK) 预计算查找表的指间碰撞防护，在命令转发给后端之前自动修正危险 DOF 组合。
@@ -160,6 +195,10 @@ python3 scripts/fk_collision_analysis.py --finger index
 
 ```
 前端命令 (DOF/Skeleton/CP) → 格式转换 → DOF
+                                         ↓
+                                   全局速度限制 (SpeedLimiter)
+                                         ↓
+                                   五次样条轨迹规划 (MotionPlanner)
                                          ↓
                                    碰撞防护修正 (ThumbRule + LateralRule)
                                          ↓
@@ -233,24 +272,39 @@ freeze_duration: 5.0
 ## 测试
 
 ```bash
-# 碰撞防护单元测试 (mock 查找表)
-python3 -m pytest l10_hand_gateway/test_collision_guard.py -v
+# 速度映射单元测试
+python3 -m pytest tests/test_speed_limiter.py -v
+
+# 五次样条轨迹规划测试
+python3 -m pytest tests/test_motion_planner.py -v
+
+# 碰撞查询测试
+python3 -m pytest tests/test_query_dof0_limit.py -v
+
+# 拇指避让路径规划测试
+python3 -m pytest tests/test_thumb_path_planner.py -v
+
+# 碰撞防护单元测试 (真实查找表)
+python3 -m pytest tests/test_collision_guard.py -v
 
 # 触觉防护单元测试
-python3 -m pytest l10_hand_gateway/test_tactile_guard.py -v
-
-# 集成测试 (真实查找表 + FK 验证)
-python3 -m pytest tests/test_gateway_integration.py -v
+python3 -m pytest tests/test_tactile_guard.py -v
 
 # 全量测试
-python3 -m pytest l10_hand_gateway/test_collision_guard.py l10_hand_gateway/test_tactile_guard.py tests/test_gateway_integration.py -v
+python3 -m pytest tests/ -v --ignore=tests/test_gateway_integration.py
 ```
 
-碰撞防护单元测试 (18 个)：ThumbRule 弯曲限制/对指回退、LateralRule 侧摆修正、邻域查询边界、输入校验、输出范围约束。
+速度映射测试 (20 个)：百分比映射、round-trip、属性读写、常量导出。
 
-触觉防护单元测试 (36 个)：冻结行为 (5 指)、回退行为、超时解除、力下降解除、手动重置、边界条件、矩阵解析 (6 个)。
+五次样条测试 (36 个)：透传/冻结模式、平滑启动、无过调、钟形速度曲线、精确到达、snap 机制、重规划、边界钳位、dt 限制、reset、DOF 独立性。
 
-集成测试 (13 个)：使用 `collision_tables.json` 和 FK 验证修正后的 DOF 不碰撞。
+碰撞查询测试 (17 个)：mock 查找表验证、邻域搜索、多指综合、与 check() 一致性验证。
+
+拇指避让测试 (10 个)：Phase 1/Phase 2 过渡、DOF0 保持/释放、平滑过渡、不可避让回退。
+
+碰撞防护测试 (16 个)：ThumbRule 弯曲限制/对指回退、LateralRule 侧摆修正、JointRuleGuard 组合、输入校验。
+
+触觉防护测试 (36 个)：冻结行为 (5 指)、回退行为、超时解除、力下降解除、手动重置、边界条件、矩阵解析 (6 个)。
 
 ## 依赖说明
 
@@ -278,14 +332,20 @@ l10_hand_gateway/
 ├── scripts/
 │   └── fk_collision_analysis.py     # 碰撞查找表生成工具
 ├── tests/
+│   ├── test_speed_limiter.py        # 速度映射单元测试
+│   ├── test_motion_planner.py       # 五次样条轨迹规划测试
+│   ├── test_query_dof0_limit.py     # 碰撞查询测试
+│   ├── test_thumb_path_planner.py   # 拇指避让路径规划测试
+│   ├── test_collision_guard.py      # 碰撞防护单元测试
+│   ├── test_tactile_guard.py        # 触觉防护单元测试
 │   └── test_gateway_integration.py  # 集成测试 (FK + 真实查找表)
 └── l10_hand_gateway/
     ├── __init__.py
     ├── gateway_node.py              # 网关节点 — 反向代理 + 命令分发 + 安全防护
+    ├── speed_limiter.py             # 速度映射 — 百分比 ↔ max_speed
+    ├── motion_planner.py            # 五次样条轨迹 + 拇指避让路径
     ├── collision_guard.py           # 碰撞防护 — ThumbRule + LateralRule
     ├── collision_tables.json        # 预计算碰撞查找表
     ├── tactile_guard.py             # 触觉紧急停止 — 冻结/回退
-    ├── test_collision_guard.py      # 碰撞防护单元测试
-    ├── test_tactile_guard.py        # 触觉防护单元测试
     └── ik_solver.py                 # IK 求解器 — 网格采样 + Jacobian 精化
 ```

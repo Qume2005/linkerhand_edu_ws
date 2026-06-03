@@ -94,6 +94,49 @@ class ThumbRule:
                 "data": self._tables[key],
             })
 
+    def query_dof0_limit(self, dof1_val, dof9_val, finger_flexions):
+        """查询给定 (DOF1, DOF9, 四指弯曲) 下的 DOF0 安全下限。
+
+        纯查询，不修改任何值。供运动规划器在轨迹生成前调用。
+
+        Args:
+            dof1_val: DOF1 值 (拇指侧摆)
+            dof9_val: DOF9 值 (拇指旋转/对指)
+            finger_flexions: 4 元素序列 [index, middle, ring, pinky] 弯曲值
+
+        Returns:
+            float: DOF0_min_safe — DOF0 必须 >= 此值才能避免碰撞。
+                   0.0 表示无碰撞风险。
+        """
+        dof0_limits = []
+        for fd, flex in zip(self._finger_data, finger_flexions):
+            best_limit = self._query_finger_limit(
+                fd["data"], dof1_val, dof9_val, flex)
+            if best_limit is not None:
+                dof0_limits.append(best_limit)
+
+        if not dof0_limits:
+            return 0.0
+        return max(dof0_limits)
+
+    def _query_finger_limit(self, data, dof1_val, dof9_val, finger_flex):
+        """查询单根手指的 DOF0 安全下限（3×3×3 邻域搜索）。"""
+        n = data["resolution"]
+        d1i = _find_nearest_index(data["dof1_samples"], dof1_val)
+        d9i = _find_nearest_index(data["dof9_samples"], dof9_val)
+        fi = _find_nearest_index(data["flex_samples"], finger_flex)
+
+        best_limit = None
+        for dd1 in range(max(0, d1i - 1), min(n, d1i + 2)):
+            for dd9 in range(max(0, d9i - 1), min(n, d9i + 2)):
+                for df in range(max(0, fi - 1), min(n, fi + 2)):
+                    key = f"{dd1},{dd9},{df}"
+                    if key in data["lookup"]:
+                        val = data["lookup"][key]
+                        if best_limit is None or val > best_limit:
+                            best_limit = val
+        return best_limit
+
     def check(self, target_dof):
         """检查并修正拇指 DOF。
 
@@ -108,35 +151,11 @@ class ThumbRule:
         dof9_val = safe[9]
 
         # 对每根手指查表，收集 DOF0 安全下限
-        # 检查 3×3×3 邻域，取最严格的限制，避免采样间隙漏检
-        dof0_limits = []
-        for fd in self._finger_data:
-            finger_flex = safe[fd["flex_dof"]]
-            data = fd["data"]
-            n = data["resolution"]
+        finger_flexions = [safe[fd["flex_dof"]] for fd in self._finger_data]
+        dof0_limit = self.query_dof0_limit(dof1_val, dof9_val, finger_flexions)
 
-            d1i = _find_nearest_index(data["dof1_samples"], dof1_val)
-            d9i = _find_nearest_index(data["dof9_samples"], dof9_val)
-            fi = _find_nearest_index(data["flex_samples"], finger_flex)
-
-            best_limit = None
-            for dd1 in range(max(0, d1i - 1), min(n, d1i + 2)):
-                for dd9 in range(max(0, d9i - 1), min(n, d9i + 2)):
-                    for df in range(max(0, fi - 1), min(n, fi + 2)):
-                        key = f"{dd1},{dd9},{df}"
-                        if key in data["lookup"]:
-                            val = data["lookup"][key]
-                            if best_limit is None or val > best_limit:
-                                best_limit = val
-
-            if best_limit is not None:
-                dof0_limits.append(best_limit)
-
-        if not dof0_limits:
+        if dof0_limit <= 0.0:
             return safe, violations
-
-        # 取最严格的 DOF0 限制
-        dof0_limit = max(dof0_limits)
 
         # 限制 DOF0
         if safe[0] < dof0_limit:
@@ -273,6 +292,11 @@ class JointRuleGuard:
     def __init__(self, tables=None):
         self._thumb_rule = ThumbRule(tables)
         self._lateral_rule = LateralRule(tables)
+
+    @property
+    def thumb_rule(self):
+        """内部 ThumbRule 实例（供 MotionPlanner 拇指路径规划使用）。"""
+        return self._thumb_rule
 
     def check(self, target_dof):
         """检查并修正目标 DOF。

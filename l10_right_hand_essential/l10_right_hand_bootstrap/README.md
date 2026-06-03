@@ -68,7 +68,7 @@ ros2 launch l10_right_hand_bootstrap sim.launch.py
 ### 2. real.launch.py —— 真机模式完整版
 
 ```bash
-ros2 launch l10_right_hand_bootstrap real.launch.py can_port:=can0 is_touch:=true topic_hz:=30
+ros2 launch l10_right_hand_bootstrap real.launch.py can_port:=can0 is_touch:=true topic_hz:=60
 ```
 
 启动组件: CAN 硬件驱动 + 网关 + RViz2 可视化 + 控制面板
@@ -94,7 +94,7 @@ ros2 launch l10_right_hand_bootstrap sim_headless.launch.py
 ### 4. real_headless.launch.py —— 真机无头模式
 
 ```bash
-ros2 launch l10_right_hand_bootstrap real_headless.launch.py can_port:=can0 is_touch:=true topic_hz:=30
+ros2 launch l10_right_hand_bootstrap real_headless.launch.py can_port:=can0 is_touch:=true topic_hz:=60
 ```
 
 启动组件: CAN 硬件驱动 + 网关 (无可视化，无控制面板)
@@ -138,7 +138,7 @@ RegisterEventHandler(
 |------|--------|------|
 | `can_port` | `can0` | CAN 接口名称 (如 `can0`、`can1`) |
 | `is_touch` | `true` | 是否启用触觉传感器 (`true`/`false`) |
-| `topic_hz` | `30` | 驱动发布频率 (Hz)，建议 10-50 |
+| `topic_hz` | `60` | 控制频率 (Hz)，同时控制网关样条轨迹和驱动发送，建议 30-120 |
 
 使用示例:
 
@@ -147,7 +147,7 @@ RegisterEventHandler(
 ros2 launch l10_right_hand_bootstrap real.launch.py can_port:=can1 is_touch:=false topic_hz:=50
 ```
 
-`sim.launch.py` 和 `sim_headless.launch.py` 不接受参数，使用固定的 `topic_hz=30` 和 `is_touch=True`。
+`sim.launch.py` 和 `sim_headless.launch.py` 不接受参数，使用固定的 `topic_hz=60` 和 `is_touch=True`。
 
 ## 启动时序图
 
