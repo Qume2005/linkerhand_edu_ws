@@ -27,3 +27,6 @@ Thumbs.db
 llm_settings.json
 
 .claude/
+
+# reference codes
+references/
