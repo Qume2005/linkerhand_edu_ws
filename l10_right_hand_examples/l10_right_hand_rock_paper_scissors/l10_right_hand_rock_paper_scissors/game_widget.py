@@ -25,10 +25,10 @@ from l10_right_hand_rock_paper_scissors.gesture_detector import GestureDetector
 
 # 结果显示样式
 RESULT_STYLES = {
-    "human_wins": {"color": "#FFD700", "text": "YOU WIN!",  "bg": "#1a1a2e"},
-    "robot_wins": {"color": "#FF4444", "text": "I WIN!",    "bg": "#2e1a1a"},
-    "tie":        {"color": "#C0C0C0", "text": "TIE!",      "bg": "#1a2e1a"},
-    "timeout":    {"color": "#888888", "text": "TIME OUT!", "bg": "#2e2e1a"},
+    "human_wins": {"color": "#FFD700", "text": "你赢了!",  "bg": "#1a1a2e"},
+    "robot_wins": {"color": "#FF4444", "text": "我赢了!",    "bg": "#2e1a1a"},
+    "tie":        {"color": "#C0C0C0", "text": "平局!",      "bg": "#1a2e1a"},
+    "timeout":    {"color": "#888888", "text": "超时!", "bg": "#2e2e1a"},
 }
 
 
@@ -66,7 +66,7 @@ class GameWidget(QWidget):
         self._connect_signals()
 
     def _init_ui(self):
-        self.setWindowTitle("Rock Paper Scissors — LinkerHand")
+        self.setWindowTitle("石头剪刀布 — LinkerHand")
         self.setMinimumSize(960, 540)
 
         main_layout = QHBoxLayout(self)
@@ -76,7 +76,7 @@ class GameWidget(QWidget):
         left_layout = QVBoxLayout(left_frame)
         left_layout.setContentsMargins(4, 4, 4, 4)
 
-        self._camera_label = QLabel("Waiting for camera...")
+        self._camera_label = QLabel("等待摄像头...")
         self._camera_label.setMinimumSize(640, 480)
         self._camera_label.setAlignment(Qt.AlignCenter)
         self._camera_label.setStyleSheet(
@@ -90,18 +90,18 @@ class GameWidget(QWidget):
         right_layout.setContentsMargins(8, 8, 8, 8)
 
         # 标题
-        title = QLabel("Rock Paper Scissors")
+        title = QLabel("石头剪刀布")
         title.setFont(QFont("Arial", 16, QFont.Bold))
         title.setAlignment(Qt.AlignCenter)
         right_layout.addWidget(title)
 
         # 模式选择
-        mode_label = QLabel("Game Mode")
+        mode_label = QLabel("游戏模式")
         mode_label.setFont(QFont("Arial", 11, QFont.Bold))
         right_layout.addWidget(mode_label)
 
-        self._mode_competition = QRadioButton("Competition")
-        self._mode_response = QRadioButton("Response")
+        self._mode_competition = QRadioButton("比赛模式")
+        self._mode_response = QRadioButton("响应模式")
         self._mode_competition.setChecked(True)
         mode_layout = QHBoxLayout()
         mode_layout.addWidget(self._mode_competition)
@@ -109,14 +109,14 @@ class GameWidget(QWidget):
         right_layout.addLayout(mode_layout)
 
         # 响应策略（仅响应模式可用）
-        self._strategy_label = QLabel("Response Strategy")
+        self._strategy_label = QLabel("响应策略")
         self._strategy_label.setFont(QFont("Arial", 11, QFont.Bold))
         right_layout.addWidget(self._strategy_label)
 
-        self._strat_win = QRadioButton("Always Win")
-        self._strat_lose = QRadioButton("Always Lose")
-        self._strat_tie = QRadioButton("Always Tie")
-        self._strat_random = QRadioButton("Random")
+        self._strat_win = QRadioButton("总是赢")
+        self._strat_lose = QRadioButton("总是输")
+        self._strat_tie = QRadioButton("总是平局")
+        self._strat_random = QRadioButton("随机")
         self._strat_random.setChecked(True)
         self._set_strategy_enabled(False)
 
@@ -133,11 +133,11 @@ class GameWidget(QWidget):
         right_layout.addWidget(line)
 
         # 比分板
-        score_title = QLabel("Scoreboard")
+        score_title = QLabel("计分板")
         score_title.setFont(QFont("Arial", 11, QFont.Bold))
         right_layout.addWidget(score_title)
 
-        self._score_label = QLabel("You: 0  |  Robot: 0  |  Tie: 0")
+        self._score_label = QLabel("你: 0  |  机器人: 0  |  平局: 0")
         self._score_label.setFont(QFont("Arial", 13))
         self._score_label.setAlignment(Qt.AlignCenter)
         right_layout.addWidget(self._score_label)
@@ -160,7 +160,7 @@ class GameWidget(QWidget):
         right_layout.addWidget(self._detail_label)
 
         # 开始按钮
-        self._start_btn = QPushButton("START!")
+        self._start_btn = QPushButton("开始!")
         self._start_btn.setFont(QFont("Arial", 18, QFont.Bold))
         self._start_btn.setMinimumHeight(50)
         self._start_btn.setStyleSheet(
@@ -172,7 +172,7 @@ class GameWidget(QWidget):
         right_layout.addWidget(self._start_btn)
 
         # 状态栏
-        self._status_label = QLabel("Ready")
+        self._status_label = QLabel("就绪")
         self._status_label.setFont(QFont("Arial", 10))
         self._status_label.setAlignment(Qt.AlignCenter)
         right_layout.addWidget(self._status_label)
@@ -230,10 +230,10 @@ class GameWidget(QWidget):
     def _on_state_changed(self, state_value: str):
         state = GameState(state_value)
         status_texts = {
-            GameState.IDLE: "Ready",
-            GameState.COUNTDOWN: "Countdown...",
-            GameState.WAITING_GESTURE: "Show your gesture!",
-            GameState.JUDGING: "Judging...",
+            GameState.IDLE: "就绪",
+            GameState.COUNTDOWN: "倒计时...",
+            GameState.WAITING_GESTURE: "出示手势!",
+            GameState.JUDGING: "判定中...",
             GameState.RESULT: "",
         }
         self._status_label.setText(status_texts.get(state, ""))
@@ -257,10 +257,10 @@ class GameWidget(QWidget):
             self._audio.play(audio_map[step])
 
         display_map = {
-            "get_ready": "READY?",
-            "rock": "ROCK!",
-            "scissors": "SCISSORS!",
-            "paper": "PAPER!",
+            "get_ready": "准备?",
+            "rock": "石头!",
+            "scissors": "剪刀!",
+            "paper": "布!",
         }
         self._status_label.setText(display_map.get(step, ""))
 
@@ -274,7 +274,7 @@ class GameWidget(QWidget):
 
         # 更新比分
         self._score_label.setText(
-            f"You: {scores['human']}  |  Robot: {scores['robot']}  |  Tie: {scores['tie']}")
+            f"你: {scores['human']}  |  机器人: {scores['robot']}  |  平局: {scores['tie']}")
 
         # 结果显示
         style = RESULT_STYLES.get(result, RESULT_STYLES["timeout"])
@@ -287,9 +287,9 @@ class GameWidget(QWidget):
         if result != "timeout":
             human_text = f"{GESTURE_EMOJI.get(human, '?')} {GESTURE_DISPLAY.get(human, human)}"
             robot_text = f"{GESTURE_EMOJI.get(robot, '?')} {GESTURE_DISPLAY.get(robot, robot)}"
-            self._detail_label.setText(f"You: {human_text}  vs  Robot: {robot_text}")
+            self._detail_label.setText(f"你: {human_text}  vs  机器人: {robot_text}")
         else:
-            self._detail_label.setText("No gesture detected")
+            self._detail_label.setText("未检测到手势")
 
         # 播放结果语音（仅比赛模式）
         if self._engine.mode == GameMode.COMPETITION:
@@ -319,7 +319,7 @@ class GameWidget(QWidget):
         self._result_label.setStyleSheet(
             f"color: {style['color']}; background-color: {style['bg']}; "
             f"border-radius: 12px; padding: 10px;")
-        self._detail_label.setText("No gesture detected")
+        self._detail_label.setText("未检测到手势")
 
     def _on_result_done(self):
         # 比赛模式播放"再来一局？"

@@ -83,7 +83,7 @@ class TestFullNodeInit:
         widget = GameWidget(engine, detector, audio)
 
         assert widget is not None
-        assert "Rock Paper Scissors" in widget.windowTitle()
+        assert "石头剪刀布" in widget.windowTitle()
 
     def test_full_init_chain(self, qt_app):
         """完整初始化链路：模拟 RockPaperScissorsNode.__init__ 中所有步骤。"""

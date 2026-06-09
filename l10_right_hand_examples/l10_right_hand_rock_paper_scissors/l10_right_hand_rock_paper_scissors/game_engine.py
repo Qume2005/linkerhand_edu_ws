@@ -53,9 +53,9 @@ GESTURES = ("rock", "paper", "scissors")
 
 # 手势显示名
 GESTURE_DISPLAY = {
-    "rock":     "ROCK",
-    "paper":    "PAPER",
-    "scissors": "SCISSORS",
+    "rock":     "石头",
+    "paper":    "布",
+    "scissors": "剪刀",
 }
 
 # 手势 emoji
