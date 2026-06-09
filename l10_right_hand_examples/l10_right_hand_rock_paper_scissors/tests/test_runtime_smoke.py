@@ -126,10 +126,12 @@ class TestPosesValues:
 
     def test_rock_is_fist(self):
         from l10_right_hand_rock_paper_scissors.poses import ROCK_POSE
-        # 石头：所有弯曲 DOF 应该是低值（接近 0）
-        bend_indices = [0, 2, 3, 4, 5]  # thumb_bend, index_bend, middle, ring, little
-        for i in bend_indices:
+        # 石头：食指~小指弯曲 DOF 应该是低值（接近 0），拇指有一定弯曲以包裹拳头
+        fist_bent = [2, 3, 4, 5]   # index_bend, middle, ring, little — 完全弯曲
+        for i in fist_bent:
             assert ROCK_POSE[i] < 50, f"Rock 姿态 DOF[{i}]={ROCK_POSE[i]} 应接近 0"
+        # 拇指弯曲（DOF0）和侧摆（DOF1）应为握拳包裹位，不是 0 但也不伸直
+        assert 50 <= ROCK_POSE[0] <= 200, f"Rock 姿态 DOF[0]={ROCK_POSE[0]} 拇指应有适度弯曲"
 
     def test_paper_is_open(self):
         from l10_right_hand_rock_paper_scissors.poses import PAPER_POSE

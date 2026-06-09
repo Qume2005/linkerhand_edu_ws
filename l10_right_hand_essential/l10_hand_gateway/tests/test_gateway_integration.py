@@ -150,24 +150,26 @@ class TestGuardDoesNotOverRestrict(unittest.TestCase):
 
     def test_default_pose_unchanged(self):
         """默认初始位姿不被修改"""
-        dof = [255.0, 200.0, 255.0, 255.0, 255.0, 255.0, 180.0, 180.0, 180.0, 41.0]
+        from linker_hand_description.gesture_presets import READY_POSE
+        dof = [float(v) for v in READY_POSE]
         result = self.guard.check(dof)
         self.assertEqual(result.violations, [])
 
     def test_pinch_not_over_restricted(self):
         """捏合手势不应被过度限制"""
-        dof = [92.0, 112.0, 121.0, 0.0, 0.0, 0.0, 132.0, 0.0, 0.0, 48.0]
+        from linker_hand_description.gesture_presets import GESTURE_PRESETS
+        dof = [float(v) for v in GESTURE_PRESETS["pinch"]]
         result = self.guard.check(dof)
         # 捏合时拇指和食指需要能弯曲（DOF0 和 DOF2 不应被推到接近 255）
         self.assertLess(result.safe_dof[0], 200.0,
                         f"捏合时拇指弯曲被过度限制到 DOF0={result.safe_dof[0]:.1f}")
         # 食指不应被限制（不受拇指规则影响）
-        self.assertLessEqual(result.safe_dof[2], 121.0)
+        self.assertLessEqual(result.safe_dof[2], dof[2])
 
     def test_ok_gesture_not_over_restricted(self):
         """OK 手势不应被过度限制"""
-        # OK: 拇指和食指弯曲成圈，其他伸直
-        dof = [80.0, 110.0, 116.0, 255.0, 255.0, 255.0, 255.0, 255.0, 255.0, 54.0]
+        from linker_hand_description.gesture_presets import GESTURE_PRESETS
+        dof = [float(v) for v in GESTURE_PRESETS["ok"]]
         result = self.guard.check(dof)
         self.assertLess(result.safe_dof[0], 200.0,
                         f"OK 手势拇指被过度限制到 DOF0={result.safe_dof[0]:.1f}")

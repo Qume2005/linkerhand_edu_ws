@@ -29,31 +29,23 @@ sqrt 等），禁止访问 ``__builtins__``，防止注入风险。
 """
 
 # 10 个自由度名称 (对应 DOF0-DOF9, 0-255 范围)
-DOF_ORDER = [
-    "thumb_bend",       # DOF0 拇指弯曲
-    "thumb_lateral",    # DOF1 拇指侧摆
-    "index_bend",       # DOF2 食指弯曲
-    "middle_bend",      # DOF3 中指弯曲
-    "ring_bend",        # DOF4 无名指弯曲
-    "little_bend",      # DOF5 小指弯曲
-    "index_lateral",    # DOF6 食指侧摆
-    "ring_lateral",     # DOF7 无名指侧摆
-    "little_lateral",   # DOF8 小指侧摆
-    "thumb_rotation",   # DOF9 拇指侧旋
-]
+from linker_hand_description.gesture_presets import DOF_ORDER, GESTURE_PRESETS
 
-# 预设动作 (10 个 DOF 值, 0=完全弯曲, 255=完全伸直)
-PRESETS = {
-    "open":  [255, 255, 255, 255, 255, 255, 255, 255, 255, 255],
-    "fist":  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    "ok":    [80, 110, 116, 255, 255, 255, 255, 255, 255, 54],
-    "pinch": [92, 112, 121, 0, 0, 0, 132, 0, 0, 48],
-    "point": [0, 128, 255, 0, 24, 16, 49, 36, 81, 16],
-    "peace": [30, 15, 255, 255, 0, 0, 255, 255, 255, 0],
-}
+# 预设动作 — 向后兼容别名，实际值来自 linker_hand_description 共享配置
+PRESETS = GESTURE_PRESETS
 
 # ---------- set_hand_dof 描述 ----------
-SET_DOF_DESCRIPTION = (
+_GESTURE_NAME_MAP = {
+    "open": "Open hand (all straight)",
+    "fist": "Fist (all closed)",
+    "peace": "Peace / V sign (index+middle extended, rest closed, thumb tucked)",
+    "ok": "OK gesture",
+    "pinch": "Pinch",
+    "point": "Point (index finger extended)",
+    "thumbs_up": "Thumbs up (thumb extended, rest closed)",
+}
+
+_SET_DOF_PREAMBLE = (
     "Set the joint positions of a 10-DOF robotic hand. Each value is an integer "
     "from 0 to 255. The 10 values in order are: thumb_bend, thumb_lateral, "
     "index_bend, middle_bend, ring_bend, little_bend, index_lateral, "
@@ -68,18 +60,26 @@ SET_DOF_DESCRIPTION = (
     "- When the thumb should be visible/extended (e.g. thumbs up, open hand): use HIGH values for thumb_lateral (200-255) and thumb_rotation (0-80), and a HIGH thumb_bend.\n"
     "- thumb_rotation is NOT the same as thumb_bend: rotation controls the thumb's twisting angle relative to the palm, not curling.\n\n"
     "Common gestures for reference:\n"
-    "- Open hand (all straight): [255, 255, 255, 255, 255, 255, 255, 255, 255, 255]\n"
-    "- Fist (all closed): [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n"
-    "- Peace / V sign (index+middle extended, rest closed, thumb tucked): [30, 15, 255, 255, 0, 0, 255, 255, 255, 0]\n"
-    "- OK gesture: [80, 110, 116, 255, 255, 255, 255, 255, 255, 54]\n"
-    "- Pinch: [92, 112, 121, 0, 0, 0, 132, 0, 0, 48]\n"
-    "- Point (index finger extended): [0, 128, 255, 0, 24, 16, 49, 36, 81, 16]\n"
-    "- Thumbs up (thumb extended, rest closed): [255, 255, 0, 0, 0, 0, 0, 0, 0, 0]\n\n"
-    "You can combine these presets with modifications. For example, to make a "
+)
+
+_SET_DOF_POSTAMBLE = (
+    "\nYou can combine these presets with modifications. For example, to make a "
     "rocker/horns sign, extend index and little fingers while bending "
     "the rest. Be creative and adjust individual DOF values to achieve "
     "the requested gesture."
 )
+
+def _build_gesture_examples() -> str:
+    """从 GESTURE_PRESETS 自动生成手势示例列表。"""
+    lines = []
+    for name in ("open", "fist", "peace", "ok", "pinch", "point", "thumbs_up"):
+        if name in GESTURE_PRESETS:
+            label = _GESTURE_NAME_MAP.get(name, name)
+            values = ", ".join(str(v) for v in GESTURE_PRESETS[name])
+            lines.append(f"- {label}: [{values}]")
+    return "\n".join(lines)
+
+SET_DOF_DESCRIPTION = _SET_DOF_PREAMBLE + _build_gesture_examples() + _SET_DOF_POSTAMBLE
 
 # ---------- queue_hand_actions 描述 ----------
 QUEUE_DESCRIPTION = (

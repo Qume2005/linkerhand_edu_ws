@@ -67,7 +67,8 @@ class L10HandGatewayNode(Node):
 
         # ---- 状态 ----
         self._current_dof = [255.0] * 10
-        self._target_dof = [255.0, 200.0, 255.0, 255.0, 255.0, 255.0, 180.0, 180.0, 180.0, 41.0]
+        from linker_hand_description.gesture_presets import READY_POSE as _READY_POSE
+        self._target_dof = [float(v) for v in _READY_POSE]
         self._last_forwarded_dof = None  # 消抖：上次转发给后端的 DOF
         self._camera = [0.25, 0.0, 0.0, -1.0]  # [distance, nx, ny, nz]
 

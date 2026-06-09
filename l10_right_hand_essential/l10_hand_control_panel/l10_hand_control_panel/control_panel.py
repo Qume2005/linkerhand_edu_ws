@@ -972,22 +972,27 @@ class ControlPanelWindow(QWidget):
         self.publish_current()
 
     def open_hand(self):
-        self._set_all([255] * 10)
+        from linker_hand_description.gesture_presets import GESTURE_PRESETS
+        self._set_all(list(GESTURE_PRESETS["open"]))
 
     def close_hand(self):
-        self._set_all([0] * 10)
+        from linker_hand_description.gesture_presets import GESTURE_PRESETS
+        self._set_all(list(GESTURE_PRESETS["fist"]))
 
     def reset_hand(self):
         self._set_all([d["default"] for d in DOF_DEFINITIONS])
 
     def preset_ok(self):
-        self._set_all([80, 110, 116, 255, 255, 255, 255, 255, 255, 54])
+        from linker_hand_description.gesture_presets import GESTURE_PRESETS
+        self._set_all(list(GESTURE_PRESETS["ok"]))
 
     def preset_pinch(self):
-        self._set_all([92, 112, 121, 0, 0, 0, 132, 0, 0, 48])
+        from linker_hand_description.gesture_presets import GESTURE_PRESETS
+        self._set_all(list(GESTURE_PRESETS["pinch"]))
 
     def preset_point(self):
-        self._set_all([0, 128, 255, 0, 24, 16, 49, 36, 81, 16])
+        from linker_hand_description.gesture_presets import GESTURE_PRESETS
+        self._set_all(list(GESTURE_PRESETS["point"]))
 
 
 def main(args=None):

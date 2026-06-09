@@ -18,6 +18,7 @@
   <depend>std_msgs</depend>
   <depend>geometry_msgs</depend>
   <depend>hand_forward_kinematics</depend>
+  <depend>linker_hand_description</depend>
 
   <test_depend>python3-pytest</test_depend>
 

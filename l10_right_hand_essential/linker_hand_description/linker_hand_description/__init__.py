@@ -6,6 +6,7 @@ linker_hand_description — LinkerHand 灵巧手模型描述包
 - **MuJoCo XML 模型文件** (``.xml``)：用于物理仿真，由 MuJoCo 后端节点和 FK 库直接加载
 - **URDF 模型文件** (``.urdf``)：用于 RViz2 可视化，由 robot_state_publisher 加载
 - **STL 网格文件**：手指各连杆的三维网格，被 XML/URDF 以相对路径引用
+- **手势预设** (``gesture_presets``)：所有包共享的 10-DOF 手势 DOF 值单一数据源
 
 当前主要服务于 **L10 右手**，同时包含 L6/L7/L20/L21 等其他型号的资产文件。
 
@@ -19,10 +20,15 @@ linker_hand_description — LinkerHand 灵巧手模型描述包
     # 获取其他文件
     urdf_path = get_urdf_path("linker_hand_l10_right.urdf")
 
+    # 使用共享手势预设
+    from linker_hand_description.gesture_presets import GESTURE_PRESETS
+    fist_dof = list(GESTURE_PRESETS["fist"])
+
 目录结构::
 
     linker_hand_description/
     ├── __init__.py          (本文件，提供 4 个路径辅助函数)
+    ├── gesture_presets.py   (共享手势 DOF 预设 — 单一数据源)
     └── urdf/
         ├── L10/
         │   └── linker_hand_l10_right/

@@ -27,9 +27,17 @@ for mod_name in [
     'std_msgs', 'std_msgs.msg',
     'mujoco',
     'hand_forward_kinematics', 'hand_forward_kinematics.kinematics',
-    'linker_hand_description',
 ]:
     sys.modules.setdefault(mod_name, MagicMock())
+
+# linker_hand_description 提供 gesture_presets（共享手势配置），
+# 只 mock 路径辅助函数，保留 gesture_presets 可用。
+if 'linker_hand_description' not in sys.modules:
+    import linker_hand_description as _lhd
+    _lhd.get_urdf_path = MagicMock(return_value="/fake/path/model.xml")
+    _lhd.get_urdf_dir = MagicMock(return_value="/fake/path")
+    _lhd.get_model_path = MagicMock(return_value="/fake/path/model.urdf")
+    _lhd.get_model_dir = MagicMock(return_value="/fake/path")
 
 from PySide2.QtWidgets import QApplication, QWidget
 from PySide2.QtCore import Qt, QTimer
@@ -416,12 +424,14 @@ class TestControlPanelButtonActions(unittest.TestCase):
         self.assertFalse(self.window._syncing, f"{msg_prefix}_syncing not reset")
 
     def test_click_open_hand_full_chain(self):
+        from linker_hand_description.gesture_presets import GESTURE_PRESETS
         self.window.open_hand()
-        self._verify_full_chain([255] * 10, "open_hand: ")
+        self._verify_full_chain(list(GESTURE_PRESETS["open"]), "open_hand: ")
 
     def test_click_close_hand_full_chain(self):
+        from linker_hand_description.gesture_presets import GESTURE_PRESETS
         self.window.close_hand()
-        self._verify_full_chain([0] * 10, "close_hand: ")
+        self._verify_full_chain(list(GESTURE_PRESETS["fist"]), "close_hand: ")
 
     def test_click_reset_full_chain(self):
         self.window.close_hand()
@@ -430,43 +440,49 @@ class TestControlPanelButtonActions(unittest.TestCase):
         self._verify_full_chain(expected, "reset_hand: ")
 
     def test_click_preset_ok_full_chain(self):
-        expected = [80, 110, 116, 255, 255, 255, 255, 255, 255, 54]
+        from linker_hand_description.gesture_presets import GESTURE_PRESETS
+        expected = list(GESTURE_PRESETS["ok"])
         self.window.preset_ok()
         self._verify_full_chain(expected, "preset_ok: ")
 
     def test_click_preset_pinch_full_chain(self):
-        expected = [92, 112, 121, 0, 0, 0, 132, 0, 0, 48]
+        from linker_hand_description.gesture_presets import GESTURE_PRESETS
+        expected = list(GESTURE_PRESETS["pinch"])
         self.window.preset_pinch()
         self._verify_full_chain(expected, "preset_pinch: ")
 
     def test_click_preset_point_full_chain(self):
-        expected = [0, 128, 255, 0, 24, 16, 49, 36, 81, 16]
+        from linker_hand_description.gesture_presets import GESTURE_PRESETS
+        expected = list(GESTURE_PRESETS["point"])
         self.window.preset_point()
         self._verify_full_chain(expected, "preset_point: ")
 
     def test_button_click_via_click_method(self):
         """通过 QPushButton.click() 模拟点击 "握拳" 按钮。"""
+        from linker_hand_description.gesture_presets import GESTURE_PRESETS
         from PySide2.QtWidgets import QPushButton
         buttons = self.window.findChildren(QPushButton)
         fist_btn = next(b for b in buttons if b.text() == "握拳")
         fist_btn.click()
-        self._verify_full_chain([0] * 10, "btn.click(握拳): ")
+        self._verify_full_chain(list(GESTURE_PRESETS["fist"]), "btn.click(握拳): ")
 
     def test_button_click_via_signal(self):
         """通过 QPushButton.clicked.emit() 触发 "OK" 按钮。"""
+        from linker_hand_description.gesture_presets import GESTURE_PRESETS
         from PySide2.QtWidgets import QPushButton
         buttons = self.window.findChildren(QPushButton)
         ok_btn = next(b for b in buttons if b.text() == "OK")
         ok_btn.clicked.emit()
-        expected = [80, 110, 116, 255, 255, 255, 255, 255, 255, 54]
+        expected = list(GESTURE_PRESETS["ok"])
         self._verify_full_chain(expected, "btn.clicked(OK): ")
 
     def test_sequential_button_clicks(self):
         """连续点击多个按钮，最终状态为最后一次点击的值。"""
+        from linker_hand_description.gesture_presets import GESTURE_PRESETS
         self.window.open_hand()
         self.window.close_hand()
-        expected = [80, 110, 116, 255, 255, 255, 255, 255, 255, 54]
         self.window.preset_ok()
+        expected = list(GESTURE_PRESETS["ok"])
         self._verify_full_chain(expected, "sequential: ")
 
     def test_no_ros_node_no_crash(self):
