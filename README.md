@@ -101,6 +101,10 @@ pip3 install --break-system-packages \
 pip3 install --break-system-packages \
   mediapipe \
   opencv-python
+
+# 可选：石头剪刀布游戏
+pip3 install --break-system-packages \
+  pygame edge-tts
 ```
 
 ### 4. CAN 总线（仅真机模式需要）
@@ -156,6 +160,12 @@ ros2 launch l10_right_hand_llm llm_control.launch.py
 
 # 手部追踪（含仿真启动）
 ros2 launch l10_right_hand_tracking hand_tracking_sim.launch.py
+
+# 石头剪刀布游戏（含仿真启动）
+ros2 launch l10_right_hand_rock_paper_scissors rock_paper_scissors_sim.launch.py
+
+# 石头剪刀布游戏（真机）
+ros2 launch l10_right_hand_rock_paper_scissors rock_paper_scissors_real.launch.py
 ```
 
 ## 目录结构
@@ -171,9 +181,10 @@ linkerhand_edu_ws/
 │   ├── l10_hand_control_panel/   #   PySide2 GUI 控制面板
 │   ├── l10_right_hand_viz/       #   RViz2 可视化
 │   └── l10_right_hand_bootstrap/ #   分时启动 launch 文件
-├── l10_right_hand_examples/      # 应用示例（2 个，可选）
+├── l10_right_hand_examples/      # 应用示例（3 个，可选）
 │   ├── l10_right_hand_llm/       #   LLM 自然语言手势控制
-│   └── l10_right_hand_tracking/  #   摄像头手部追踪
+│   ├── l10_right_hand_tracking/  #   摄像头手部追踪
+│   └── l10_right_hand_rock_paper_scissors/  #   石头剪刀布互动游戏
 ├── Dockerfile                    # 完整容器化环境
 ├── CLAUDE.md                     # Claude Code 开发参考
 └── README.md                     # 本文件
@@ -232,5 +243,5 @@ CAN ID（右手）: `0x27`。默认 CAN 端口: `can0`。
 ## 详细文档
 
 - [核心包文档](l10_right_hand_essential/README.md) — 8 个核心包的功能介绍、依赖关系、使用场景
-- [应用示例文档](l10_right_hand_examples/README.md) — LLM 控制和手部追踪的使用方法
+- [应用示例文档](l10_right_hand_examples/README.md) — LLM 控制、手部追踪和石头剪刀布游戏的使用方法
 - 各软件包内部的 `README.md` — 技术细节、算法原理、踩坑记录
