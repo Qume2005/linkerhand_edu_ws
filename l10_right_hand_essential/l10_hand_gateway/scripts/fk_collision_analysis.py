@@ -3,8 +3,14 @@
 FK 碰撞分析脚本 — 生成碰撞防护查找表
 
 分析内容：
-1. 拇指 vs 四指：扫描 DOF0×DOF1×DOF9 × 每指弯曲度，生成独立查找表
-2. 小指 vs 无名指：扫描 DOF7×DOF8，找侧摆碰撞边界
+1. 拇指 vs 食指：4D 扫描 DOF0×DOF1×DOF9×DOF6 × 食指弯曲度
+2. 拇指 vs 其余三指：3D 扫描 DOF0×DOF1×DOF9 × 每指弯曲度
+3. 小指 vs 无名指：扫描 DOF7×DOF8，找侧摆碰撞边界
+
+DOF6（食指侧摆）对 thumb_vs_index 碰撞边界影响显著：
+- DOF6=0（食指收拢）时食指靠近拇指，碰撞风险大幅增加
+- DOF6=255（食指外展）时食指远离拇指，碰撞风险降低
+因此 thumb_vs_index 使用 4D 查找表（含 DOF6 维度）。
 
 输出：JSON 查找表数据，供 collision_guard.py 使用
 """
@@ -14,7 +20,7 @@ import os
 import json
 import math
 
-_ws = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+_ws = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 sys.path.insert(0, os.path.join(_ws, 'hand_forward_kinematics'))
 
 import numpy as np
@@ -85,13 +91,17 @@ def dof_to_positions(dof_10):
     return positions
 
 
-def check_collision(positions, bodies_a, bodies_b):
-    """检查两组 body 之间是否有碰撞（关节中心距 < 半径之和）"""
+# 碰撞检测安全余量（m）— 使查找表更保守，补偿采样分辨率不足
+COLLISION_MARGIN = 0.006  # 6mm
+
+
+def check_collision(positions, bodies_a, bodies_b, margin=0.0):
+    """检查两组 body 之间是否有碰撞（关节中心距 < 半径之和 + 余量）"""
     min_dist = float('inf')
     for ba in bodies_a:
         for bb in bodies_b:
             d = float(np.linalg.norm(positions[ba] - positions[bb]))
-            threshold = BODY_RADIUS.get(ba, 0.008) + BODY_RADIUS.get(bb, 0.008)
+            threshold = BODY_RADIUS.get(ba, 0.008) + BODY_RADIUS.get(bb, 0.008) + margin
             if d < threshold:
                 return True, d
             min_dist = min(min_dist, d)
@@ -101,61 +111,99 @@ def check_collision(positions, bodies_a, bodies_b):
 # ============================================================================
 # 分析 1：拇指 vs 每根手指 — 生成查找表
 # ============================================================================
-# 对每根手指，在多个弯曲度下，扫描 DOF0×DOF1×DOF9 空间
-# 记录每个 (DOF1, DOF9, finger_flex) 组合下的 DOF0 安全下限
+# 食指（index）使用 4D 查找表：(DOF1, DOF9, DOF6, finger_flex) → DOF0_min_safe
+#   DOF6（食指侧摆）显著影响碰撞边界：
+#   DOF6=0（收拢）时食指靠近拇指，碰撞风险大幅增加
+# 其余手指使用 3D 查找表：(DOF1, DOF9, finger_flex) → DOF0_min_safe
 # DOF0 是 reversed (0=全弯, 255=伸直)，安全下限 = 允许的最大弯曲
 
 def analyze_thumb_vs_finger(finger_name, resolution=16):
     """分析拇指 vs 单根手指的碰撞边界。
 
-    生成查找表：(DOF1_bucket, DOF9_bucket, finger_flex_bucket) → DOF0_min_safe
+    对于 index 手指，生成 4D 查找表：(DOF1, DOF9, DOF6, flex) → DOF0_min_safe
+    对于其余手指，生成 3D 查找表：(DOF1, DOF9, flex) → DOF0_min_safe
+
     DOF0_min_safe 是允许弯曲到的最小值（越小越弯），低于此值会碰撞。
     """
     flex_dof = FINGER_FLEX_DOF[finger_name]
     finger_bodies = FINGER_BODIES[finger_name]
+    is_index = (finger_name == "index")
 
     # 采样分辨率
     dof1_samples = np.linspace(0, 255, resolution, dtype=float)
     dof9_samples = np.linspace(0, 255, resolution, dtype=float)
     flex_samples = np.linspace(0, 255, resolution, dtype=float)
+    if is_index:
+        dof6_samples = np.linspace(0, 255, resolution, dtype=float)
 
-    lookup = {}  # (dof1_idx, dof9_idx, flex_idx) → dof0_min_safe
+    lookup = {}
 
-    for fi, flex_val in enumerate(flex_samples):
-        for d1i, dof1_val in enumerate(dof1_samples):
-            for d9i, dof9_val in enumerate(dof9_samples):
-                # 二分搜索 DOF0 的安全下限
-                lo, hi = 0.0, 255.0
-                best = 0.0  # 默认允许全弯（0=全弯是安全的）
-                while hi - lo > 2.0:
-                    mid = (lo + hi) / 2.0
-                    dof = [255.0] * 10
-                    dof[0] = mid
-                    dof[1] = dof1_val
-                    dof[flex_dof] = flex_val
-                    dof[9] = dof9_val
-                    # 其他手指伸直，不影响
-                    pos = dof_to_positions(dof)
-                    coll, _ = check_collision(pos, THUMB_BODIES, finger_bodies)
-                    if coll:
-                        lo = mid  # 弯曲不够安全，需要更伸直
-                    else:
-                        best = mid  # 这个弯曲度安全，可以更弯
-                        hi = mid
+    if is_index:
+        # 4D 扫描：DOF1 × DOF9 × DOF6 × flex
+        for fi, flex_val in enumerate(flex_samples):
+            for d1i, dof1_val in enumerate(dof1_samples):
+                for d9i, dof9_val in enumerate(dof9_samples):
+                    for d6i, dof6_val in enumerate(dof6_samples):
+                        # 二分搜索 DOF0 的安全下限
+                        lo, hi = 0.0, 255.0
+                        best = 0.0
+                        while hi - lo > 2.0:
+                            mid = (lo + hi) / 2.0
+                            dof = [255.0] * 10
+                            dof[0] = mid
+                            dof[1] = dof1_val
+                            dof[flex_dof] = flex_val
+                            dof[6] = dof6_val
+                            dof[9] = dof9_val
+                            pos = dof_to_positions(dof)
+                            coll, _ = check_collision(pos, THUMB_BODIES, finger_bodies,
+                                                         margin=COLLISION_MARGIN)
+                            if coll:
+                                lo = mid
+                            else:
+                                best = mid
+                                hi = mid
+                        if best > 2.0:
+                            lookup[(d1i, d9i, d6i, fi)] = round(best, 1)
+    else:
+        # 3D 扫描：DOF1 × DOF9 × flex
+        for fi, flex_val in enumerate(flex_samples):
+            for d1i, dof1_val in enumerate(dof1_samples):
+                for d9i, dof9_val in enumerate(dof9_samples):
+                    lo, hi = 0.0, 255.0
+                    best = 0.0
+                    while hi - lo > 2.0:
+                        mid = (lo + hi) / 2.0
+                        dof = [255.0] * 10
+                        dof[0] = mid
+                        dof[1] = dof1_val
+                        dof[flex_dof] = flex_val
+                        dof[9] = dof9_val
+                        pos = dof_to_positions(dof)
+                        coll, _ = check_collision(pos, THUMB_BODIES, finger_bodies,
+                                                     margin=COLLISION_MARGIN)
+                        if coll:
+                            lo = mid
+                        else:
+                            best = mid
+                            hi = mid
+                    if best > 2.0:
+                        lookup[(d1i, d9i, fi)] = round(best, 1)
 
-                # best = 0 表示全弯也安全（无碰撞）
-                # best > 0 表示有碰撞风险，DOF0 必须 >= best
-                if best > 2.0:
-                    lookup[(d1i, d9i, fi)] = round(best, 1)
-
-    return {
+    result = {
         "finger": finger_name,
         "resolution": resolution,
-        "lookup": {f"{k[0]},{k[1]},{k[2]}": v for k, v in lookup.items()},
         "dof1_samples": dof1_samples.tolist(),
         "dof9_samples": dof9_samples.tolist(),
         "flex_samples": flex_samples.tolist(),
     }
+    if is_index:
+        result["dof6_samples"] = dof6_samples.tolist()
+        result["lookup"] = {f"{k[0]},{k[1]},{k[2]},{k[3]}": v for k, v in lookup.items()}
+    else:
+        result["lookup"] = {f"{k[0]},{k[1]},{k[2]}": v for k, v in lookup.items()}
+
+    return result
 
 
 # ============================================================================
@@ -201,7 +249,7 @@ def analyze_pinky_ring_lateral(resolution=32):
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="FK 碰撞分析")
-    parser.add_argument("--thumb-res", type=int, default=12,
+    parser.add_argument("--thumb-res", type=int, default=16,
                         help="拇指扫描分辨率 (每 DOF 采样点数)")
     parser.add_argument("--lateral-res", type=int, default=32,
                         help="侧摆扫描分辨率")

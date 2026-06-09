@@ -3,9 +3,11 @@ L10 灵巧手碰撞防护模块（基于 FK 查找表）
 
 两条规则：
 - ThumbRule: 限制拇指三自由度 (DOF0/DOF1/DOF9)，基于预计算的碰撞边界查找表
+  thumb_vs_index 查找表为 4D 格式（含 DOF6 食指侧摆维度），
+  其余手指（middle/ring/pinky）为 3D 格式。
 - LateralRule: 限制无名指/小指侧摆 (DOF7/DOF8)，基于预计算的碰撞边界
 
-查找表由 tests/fk_collision_analysis.py 生成。
+查找表由 scripts/fk_collision_analysis.py 生成。
 
 所有类为纯 Python，不依赖 ROS，可独立测试。
 """
@@ -72,7 +74,9 @@ def _find_nearest_index(samples, value):
 class ThumbRule:
     """拇指 vs 四指碰撞防护。
 
-    查找表结构: 对每根手指，(DOF1_bucket, DOF9_bucket, finger_flex_bucket) → DOF0_min_safe
+    查找表结构:
+    - thumb_vs_index: 4D 格式 (DOF1_bucket, DOF9_bucket, DOF6_bucket, finger_flex_bucket) → DOF0_min_safe
+    - 其余手指: 3D 格式 (DOF1_bucket, DOF9_bucket, finger_flex_bucket) → DOF0_min_safe
     DOF0_min_safe 表示 DOF0 必须 >= 此值才能避免碰撞（DOF0 越大越伸直）。
 
     执行逻辑:
@@ -94,8 +98,8 @@ class ThumbRule:
                 "data": self._tables[key],
             })
 
-    def query_dof0_limit(self, dof1_val, dof9_val, finger_flexions):
-        """查询给定 (DOF1, DOF9, 四指弯曲) 下的 DOF0 安全下限。
+    def query_dof0_limit(self, dof1_val, dof9_val, finger_flexions, dof6_val=None):
+        """查询给定 (DOF1, DOF9, 四指弯曲, DOF6) 下的 DOF0 安全下限。
 
         纯查询，不修改任何值。供运动规划器在轨迹生成前调用。
 
@@ -103,6 +107,7 @@ class ThumbRule:
             dof1_val: DOF1 值 (拇指侧摆)
             dof9_val: DOF9 值 (拇指旋转/对指)
             finger_flexions: 4 元素序列 [index, middle, ring, pinky] 弯曲值
+            dof6_val: DOF6 值 (食指侧摆)，用于 thumb_vs_index 的 4D 查询
 
         Returns:
             float: DOF0_min_safe — DOF0 必须 >= 此值才能避免碰撞。
@@ -110,8 +115,11 @@ class ThumbRule:
         """
         dof0_limits = []
         for fd, flex in zip(self._finger_data, finger_flexions):
+            # thumb_vs_index 使用 4D 查询（含 DOF6），其余使用 3D 查询
+            has_dof6 = "dof6_samples" in fd["data"]
+            d6 = dof6_val if has_dof6 else None
             best_limit = self._query_finger_limit(
-                fd["data"], dof1_val, dof9_val, flex)
+                fd["data"], dof1_val, dof9_val, flex, dof6_val=d6)
             if best_limit is not None:
                 dof0_limits.append(best_limit)
 
@@ -119,22 +127,37 @@ class ThumbRule:
             return 0.0
         return max(dof0_limits)
 
-    def _query_finger_limit(self, data, dof1_val, dof9_val, finger_flex):
-        """查询单根手指的 DOF0 安全下限（3×3×3 邻域搜索）。"""
+    def _query_finger_limit(self, data, dof1_val, dof9_val, finger_flex, dof6_val=None):
+        """查询单根手指的 DOF0 安全下限。
+
+        4D 表（含 dof6_samples）使用 3×3×3×3 邻域搜索。
+        3D 表使用 3×3×3 邻域搜索。
+        """
         n = data["resolution"]
         d1i = _find_nearest_index(data["dof1_samples"], dof1_val)
         d9i = _find_nearest_index(data["dof9_samples"], dof9_val)
         fi = _find_nearest_index(data["flex_samples"], finger_flex)
 
+        has_dof6 = "dof6_samples" in data
+        if has_dof6:
+            d6i = _find_nearest_index(data["dof6_samples"], dof6_val if dof6_val is not None else 0.0)
+            d6_range = range(max(0, d6i - 2), min(n, d6i + 3))
+        else:
+            d6_range = [None]
+
         best_limit = None
-        for dd1 in range(max(0, d1i - 1), min(n, d1i + 2)):
-            for dd9 in range(max(0, d9i - 1), min(n, d9i + 2)):
-                for df in range(max(0, fi - 1), min(n, fi + 2)):
-                    key = f"{dd1},{dd9},{df}"
-                    if key in data["lookup"]:
-                        val = data["lookup"][key]
-                        if best_limit is None or val > best_limit:
-                            best_limit = val
+        for dd6 in d6_range:
+            for dd1 in range(max(0, d1i - 2), min(n, d1i + 3)):
+                for dd9 in range(max(0, d9i - 2), min(n, d9i + 3)):
+                    for df in range(max(0, fi - 2), min(n, fi + 3)):
+                        if has_dof6:
+                            key = f"{dd1},{dd9},{dd6},{df}"
+                        else:
+                            key = f"{dd1},{dd9},{df}"
+                        if key in data["lookup"]:
+                            val = data["lookup"][key]
+                            if best_limit is None or val > best_limit:
+                                best_limit = val
         return best_limit
 
     def check(self, target_dof):
@@ -149,10 +172,12 @@ class ThumbRule:
         dof0_original = safe[0]
         dof1_val = safe[1]
         dof9_val = safe[9]
+        dof6_val = safe[6]
 
         # 对每根手指查表，收集 DOF0 安全下限
         finger_flexions = [safe[fd["flex_dof"]] for fd in self._finger_data]
-        dof0_limit = self.query_dof0_limit(dof1_val, dof9_val, finger_flexions)
+        dof0_limit = self.query_dof0_limit(
+            dof1_val, dof9_val, finger_flexions, dof6_val=dof6_val)
 
         if dof0_limit <= 0.0:
             return safe, violations
@@ -165,17 +190,27 @@ class ThumbRule:
                 dof_index=0, original=dof0_original, clamped=safe[0],
             ))
 
-        # 如果 DOF0 限制非常高，说明仅靠伸直拇指不够，需要限制 DOF9（减少对指）
-        if dof0_limit >= 252:
-            # 将 DOF9 向 255（不对指）方向推
+        # DOF0 限制较高（>= 200）时，仅靠伸直拇指不够，
+        # 需要同时减少对指（DOF9↑）和收拢侧摆（DOF1↓）
+        if dof0_limit >= 200:
+            # DOF9: 推向 255（减少对指），力度随限制值增大
             dof9_original = safe[9]
-            # 按 DOF0 超出程度成比例增加 DOF9
-            push = (dof0_limit - 252) * 2
-            safe[9] = min(255.0, dof9_val + push)
+            push9 = max(30, (dof0_limit - 240) * 3)
+            safe[9] = min(255.0, dof9_val + push9)
             if safe[9] != dof9_original:
                 violations.append(RuleResult(
                     rule_name="thumb_opposition", blocked=True,
                     dof_index=9, original=dof9_original, clamped=safe[9],
+                ))
+
+            # DOF1: 拉向 0（收拢到掌心），减少拇指与手指的侧向重叠
+            dof1_original = safe[1]
+            pull1 = max(50, (dof0_limit - 240) * 2)
+            safe[1] = max(0.0, dof1_val - pull1)
+            if safe[1] != dof1_original:
+                violations.append(RuleResult(
+                    rule_name="thumb_lateral_pull", blocked=True,
+                    dof_index=1, original=dof1_original, clamped=safe[1],
                 ))
 
         return safe, violations
@@ -218,10 +253,10 @@ class LateralRule:
         d7i = _find_nearest_index(data["dof7_samples"], d7_val)
         d8i = _find_nearest_index(data["dof8_samples"], d8_val)
 
-        # 邻域检查：检查 ±1 范围内是否有碰撞点，避免采样间隙漏检
+        # 邻域检查：检查 ±2 范围内是否有碰撞点，避免采样间隙漏检
         is_collision = False
-        for dd7 in range(max(0, d7i - 1), min(n7, d7i + 2)):
-            for dd8 in range(max(0, d8i - 1), min(n8, d8i + 2)):
+        for dd7 in range(max(0, d7i - 2), min(n7, d7i + 3)):
+            for dd8 in range(max(0, d8i - 2), min(n8, d8i + 3)):
                 if f"{dd7},{dd8}" in data["collision_map"]:
                     is_collision = True
                     break

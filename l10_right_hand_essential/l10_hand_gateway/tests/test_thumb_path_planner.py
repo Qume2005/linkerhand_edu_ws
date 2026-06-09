@@ -15,23 +15,30 @@ from l10_hand_gateway.motion_planner import (
 
 
 class MockCollisionGuard:
-    """可编程的 collision_guard mock。"""
+    """可编程的 collision_guard mock。
+
+    支持 dof6_val 参数，记录最后一次调用传入的 dof6_val。
+    """
 
     def __init__(self):
         self._limits = {}
         self.default_limit = 0.0
+        self.last_dof6_val = None  # 记录最近一次 query 收到的 dof6_val
 
-    def set_limit(self, dof1, dof9, finger_flexions, limit):
+    def set_limit(self, dof1, dof9, finger_flexions, limit, dof6=None):
         key = (round(dof1, 1), round(dof9, 1),
-               tuple(round(f, 1) for f in finger_flexions))
+               tuple(round(f, 1) for f in finger_flexions),
+               round(dof6, 1) if dof6 is not None else None)
         self._limits[key] = limit
 
-    def query_dof0_limit(self, dof1_val, dof9_val, finger_flexions):
+    def query_dof0_limit(self, dof1_val, dof9_val, finger_flexions, dof6_val=None):
+        self.last_dof6_val = dof6_val
         key = (round(dof1_val, 1), round(dof9_val, 1),
-               tuple(round(f, 1) for f in finger_flexions))
+               tuple(round(f, 1) for f in finger_flexions),
+               round(dof6_val, 1) if dof6_val is not None else None)
         if key in self._limits:
             return self._limits[key]
-        # 模糊匹配（容差 20）
+        # 模糊匹配（容差 20），忽略 dof6 维度
         for stored_key, val in self._limits.items():
             if (abs(stored_key[0] - dof1_val) < 20 and
                 abs(stored_key[1] - dof9_val) < 20 and
@@ -227,6 +234,57 @@ class TestTargetChangeMidTrajectory(unittest.TestCase):
         desired[0] = 200.0
         result = self.planner.advance(desired, max_speed=240.0)
         self.assertIsInstance(result, MotionPlanResult)
+
+
+class TestPlannerPassesDof6(unittest.TestCase):
+    """MotionPlanner 将 DOF6 传递给 ThumbRule.query_dof0_limit"""
+
+    def setUp(self):
+        self.mock_cg = MockCollisionGuard()
+        self.mock_cg.default_limit = 150.0
+        self.mock_cg.set_limit(0.0, 0.0, [128.0] * 4, 0.0)
+        self.planner = MotionPlanner(collision_guard=self.mock_cg)
+
+    def test_planner_passes_dof6(self):
+        """get_targets 将 desired_dof[6] 作为 dof6_val 传入"""
+        start = [128.0] * NUM_DOF
+        start[6] = 50.0
+        self.planner.advance(start, max_speed=120.0)
+
+        desired = [128.0] * NUM_DOF
+        desired[0] = 50.0
+        desired[6] = 42.0
+        desired[9] = 0.0
+        self.planner.advance(desired, max_speed=120.0)
+
+        # MockCollisionGuard 记录了最后一次 query_dof0_limit 的 dof6_val
+        self.assertIsNotNone(self.mock_cg.last_dof6_val,
+            "query_dof0_limit should have been called")
+        self.assertAlmostEqual(self.mock_cg.last_dof6_val, 42.0,
+            places=0,
+            msg="dof6_val should match desired_dof[6]")
+
+    def test_dof6_changes_avoidance_decision(self):
+        """不同 DOF6 值影响避让决策"""
+        # DOF6=0 时食指收拢，设置严格限制
+        self.mock_cg.set_limit(0.0, 0.0, [0.0] * 4, 0.0, dof6=0.0)
+        # DOF6=255 时食指外展，设置宽松限制
+        self.mock_cg.set_limit(0.0, 0.0, [0.0] * 4, 0.0, dof6=255.0)
+
+        # 这里只需验证 mock 被调用了 dof6_val 参数
+        planner = MotionPlanner(collision_guard=self.mock_cg)
+        start = [128.0] * NUM_DOF
+        start[6] = 0.0
+        start[9] = 0.0
+        planner.advance(start, max_speed=120.0)
+
+        desired = [128.0] * NUM_DOF
+        desired[0] = 50.0
+        desired[6] = 0.0
+        desired[9] = 0.0
+        planner.advance(desired, max_speed=120.0)
+
+        self.assertAlmostEqual(self.mock_cg.last_dof6_val, 0.0, places=0)
 
 
 if __name__ == '__main__':

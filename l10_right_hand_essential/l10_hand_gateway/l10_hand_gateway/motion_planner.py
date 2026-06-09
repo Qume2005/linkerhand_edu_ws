@@ -235,6 +235,9 @@ class _ThumbPathPlanner:
     Phase 1: DOF1 → 0（向掌心收拢），DOF0 保持不变
     Phase 2: DOF0 → 目标值，DOF1 → 原始目标值
 
+    碰撞查询传入 DOF6（食指侧摆），使 thumb_vs_index 的 4D 查找表
+    能根据食指位置精确评估碰撞风险。
+
     简单直接：不搜索安全配置，DOF1 直接降到 0（最安全位置）。
     """
 
@@ -259,13 +262,15 @@ class _ThumbPathPlanner:
         current_dof9 = current_dof[9]
         finger_flexions = [desired_dof[2], desired_dof[3],
                            desired_dof[4], desired_dof[5]]
+        dof6_val = desired_dof[6]
 
         # Phase 2 进行中：DOF0 向目标移动，DOF1 向原始目标恢复
         if self._phase == 2:
             # 目标大幅变化时重新评估
             if abs(target_dof0 - desired_dof[0]) > SNAP_THRESHOLD:
                 limit = self._thumb_rule.query_dof0_limit(
-                    current_dof1, current_dof9, finger_flexions)
+                    current_dof1, current_dof9, finger_flexions,
+                    dof6_val=dof6_val)
                 if target_dof0 >= limit:
                     self._phase = 0
                     return None
@@ -277,7 +282,8 @@ class _ThumbPathPlanner:
 
         # 检查当前配置是否允许目标 DOF0
         limit = self._thumb_rule.query_dof0_limit(
-            current_dof1, current_dof9, finger_flexions)
+            current_dof1, current_dof9, finger_flexions,
+            dof6_val=dof6_val)
 
         if target_dof0 >= limit:
             # 安全

@@ -13,15 +13,17 @@ from l10_hand_gateway.collision_guard import ThumbRule
 def _make_mock_tables(lookup_overrides=None):
     """构造最小 mock 查找表，便于测试。
 
-    默认只有 thumb_vs_index 有一条有效条目。
+    使用分辨率 8（±2 邻域覆盖 5 格，不会跨过整个表）。
+    默认只有 thumb_vs_index 有有效条目。
     其他三根手指的查找表为空（无碰撞风险）。
     """
+    _samples_8 = [0.0, 36.4, 72.9, 109.3, 145.7, 182.1, 218.6, 255.0]
     base_index = {
         "finger": "index",
-        "resolution": 4,
-        "dof1_samples": [0.0, 85.0, 170.0, 255.0],
-        "dof9_samples": [0.0, 85.0, 170.0, 255.0],
-        "flex_samples": [0.0, 85.0, 170.0, 255.0],
+        "resolution": 8,
+        "dof1_samples": list(_samples_8),
+        "dof9_samples": list(_samples_8),
+        "flex_samples": list(_samples_8),
         "lookup": {
             # DOF1=0, DOF9=0, flex=0 → DOF0 >= 50 才安全
             "0,0,0": 50.0,
@@ -35,10 +37,10 @@ def _make_mock_tables(lookup_overrides=None):
         base_index["lookup"].update(lookup_overrides)
 
     empty_finger = {
-        "resolution": 4,
-        "dof1_samples": [0.0, 85.0, 170.0, 255.0],
-        "dof9_samples": [0.0, 85.0, 170.0, 255.0],
-        "flex_samples": [0.0, 85.0, 170.0, 255.0],
+        "resolution": 8,
+        "dof1_samples": list(_samples_8),
+        "dof9_samples": list(_samples_8),
+        "flex_samples": list(_samples_8),
         "lookup": {},
     }
 
@@ -48,9 +50,9 @@ def _make_mock_tables(lookup_overrides=None):
         "thumb_vs_ring": dict(empty_finger, finger="ring"),
         "thumb_vs_pinky": dict(empty_finger, finger="pinky"),
         "pinky_ring_lateral": {
-            "resolution": 4,
-            "dof7_samples": [0.0, 85.0, 170.0, 255.0],
-            "dof8_samples": [0.0, 85.0, 170.0, 255.0],
+            "resolution": 8,
+            "dof7_samples": list(_samples_8),
+            "dof8_samples": list(_samples_8),
             "collision_map": {},
         },
     }
@@ -113,18 +115,18 @@ class TestQueryDof0LimitNeighborhoodSearch(unittest.TestCase):
 
     def test_takes_max_across_neighborhood(self):
         """邻域搜索取最大值（最严格限制）"""
+        # 使用 resolution-8 的精确采样点: d1i=4→145.7, d9i=3→109.3, fi=3→109.3
         tables = _make_mock_tables({
-            # 在 (2,1,1) 添加一个较低的限制
-            "2,1,1": 20.0,
-            # 在 (2,1,2) 添加一个较高的限制
-            "2,1,2": 150.0,
+            # 在 (4,3,3) 添加一个较低的限制
+            "4,3,3": 20.0,
+            # 在 (4,3,4) 添加一个较高的限制
+            "4,3,4": 150.0,
         })
         rule = ThumbRule(tables=tables)
-        # DOF1=170, DOF9=85, index_flex=85 → 命中 d1i=2, d9i=1, fi=1
-        # 邻域 3×3×3 会包含 "2,1,1"=20 和 "2,1,2"=150
+        # 查询命中 d1i=4, d9i=3, fi=3 的邻域
         result = rule.query_dof0_limit(
-            dof1_val=170.0, dof9_val=85.0,
-            finger_flexions=[85.0, 0.0, 0.0, 0.0])
+            dof1_val=145.7, dof9_val=109.3,
+            finger_flexions=[109.3, 0.0, 0.0, 0.0])
         self.assertAlmostEqual(result, 150.0)
 
 
@@ -243,7 +245,8 @@ class TestQueryDof0LimitAgainstCheck(unittest.TestCase):
             dof = [random.uniform(0, 255) for _ in range(10)]
             limit = self.rule.query_dof0_limit(
                 dof1_val=dof[1], dof9_val=dof[9],
-                finger_flexions=[dof[2], dof[3], dof[4], dof[5]])
+                finger_flexions=[dof[2], dof[3], dof[4], dof[5]],
+                dof6_val=dof[6])
             safe, _ = self.rule.check(list(dof))
             if limit > 0.0:
                 self.assertGreaterEqual(safe[0], limit - 0.1,
@@ -251,6 +254,151 @@ class TestQueryDof0LimitAgainstCheck(unittest.TestCase):
             else:
                 # 无碰撞风险时 check 可能仍返回原始值
                 pass
+
+
+# ============================================================================
+# DOF6（食指侧摆）4D 查找表测试
+# ============================================================================
+
+
+def _make_mock_4d_tables(lookup_overrides=None):
+    """构造包含 DOF6 维度的 mock 查找表。
+
+    thumb_vs_index 为 4D 表（dof1×dof9×dof6×flex），
+    其余手指保持 3D（dof1×dof9×flex）。
+    """
+    index_4d = {
+        "finger": "index",
+        "resolution": 4,
+        "dof1_samples": [0.0, 85.0, 170.0, 255.0],
+        "dof9_samples": [0.0, 85.0, 170.0, 255.0],
+        "dof6_samples": [0.0, 85.0, 170.0, 255.0],
+        "flex_samples": [0.0, 85.0, 170.0, 255.0],
+        "lookup": {
+            # DOF6=0 (食指收拢，靠近拇指): 碰撞风险高
+            # DOF1=0, DOF9=0, DOF6=0, flex=0 → DOF0 >= 180
+            "0,0,0,0": 180.0,
+            # DOF1=0, DOF9=0, DOF6=0, flex=1 → DOF0 >= 150
+            "0,0,0,1": 150.0,
+            # DOF1=1, DOF9=0, DOF6=0, flex=0 → DOF0 >= 200
+            "1,0,0,0": 200.0,
+            # DOF6=255 (食指外展，远离拇指): 碰撞风险低
+            # DOF1=0, DOF9=0, DOF6=3, flex=0 → DOF0 >= 20
+            "0,0,3,0": 20.0,
+            # DOF6=85 (中间位置)
+            # DOF1=0, DOF9=0, DOF6=1, flex=0 → DOF0 >= 80
+            "0,0,1,0": 80.0,
+        },
+    }
+    if lookup_overrides:
+        index_4d["lookup"].update(lookup_overrides)
+
+    empty_3d = {
+        "resolution": 4,
+        "dof1_samples": [0.0, 85.0, 170.0, 255.0],
+        "dof9_samples": [0.0, 85.0, 170.0, 255.0],
+        "flex_samples": [0.0, 85.0, 170.0, 255.0],
+        "lookup": {},
+    }
+
+    return {
+        "thumb_vs_index": index_4d,
+        "thumb_vs_middle": dict(empty_3d, finger="middle"),
+        "thumb_vs_ring": dict(empty_3d, finger="ring"),
+        "thumb_vs_pinky": dict(empty_3d, finger="pinky"),
+        "pinky_ring_lateral": {
+            "resolution": 4,
+            "dof7_samples": [0.0, 85.0, 170.0, 255.0],
+            "dof8_samples": [0.0, 85.0, 170.0, 255.0],
+            "collision_map": {},
+        },
+    }
+
+
+class TestQueryDof0LimitWithDof6(unittest.TestCase):
+    """ThumbRule 4D 查询（含 DOF6 食指侧摆维度）"""
+
+    def setUp(self):
+        self.tables = _make_mock_4d_tables()
+        self.rule = ThumbRule(tables=self.tables)
+
+    def test_4d_mock_table_query(self):
+        """4D mock 表查询返回正确限制值"""
+        # DOF1=0, DOF9=0, DOF6=0, index_flex=0
+        # 邻域包含 "0,0,0,0"=180, "0,0,0,1"=150, "1,0,0,0"=200 → max=200
+        result = self.rule.query_dof0_limit(
+            dof1_val=0.0, dof9_val=0.0,
+            finger_flexions=[0.0, 0.0, 0.0, 0.0],
+            dof6_val=0.0)
+        self.assertAlmostEqual(result, 200.0)
+
+    def test_4d_neighborhood_search(self):
+        """3×3×3×3 邻域搜索取 max"""
+        # 在 (0,0,0,0) 附近额外添加一个高值
+        tables = _make_mock_4d_tables({"1,1,1,1": 250.0})
+        rule = ThumbRule(tables=tables)
+        # 查询 DOF1=85, DOF9=85, DOF6=85, flex=85
+        # 邻域包含 "1,1,1,1"=250, 以及原有在该范围内的条目
+        result = rule.query_dof0_limit(
+            dof1_val=85.0, dof9_val=85.0,
+            finger_flexions=[85.0, 0.0, 0.0, 0.0],
+            dof6_val=85.0)
+        self.assertGreaterEqual(result, 250.0)
+
+    def test_dof6_zero_stricter(self):
+        """DOF6=0（食指收拢）比 DOF6=255（外展）限制更严格"""
+        result_d6_0 = self.rule.query_dof0_limit(
+            dof1_val=0.0, dof9_val=0.0,
+            finger_flexions=[0.0, 0.0, 0.0, 0.0],
+            dof6_val=0.0)
+        result_d6_255 = self.rule.query_dof0_limit(
+            dof1_val=0.0, dof9_val=0.0,
+            finger_flexions=[0.0, 0.0, 0.0, 0.0],
+            dof6_val=255.0)
+        self.assertGreater(result_d6_0, result_d6_255,
+            "DOF6=0 should have stricter DOF0 limit than DOF6=255")
+
+    def test_dof6_255_safest(self):
+        """DOF6=255（食指最远离拇指）时限制最低"""
+        result = self.rule.query_dof0_limit(
+            dof1_val=0.0, dof9_val=0.0,
+            finger_flexions=[0.0, 0.0, 0.0, 0.0],
+            dof6_val=255.0)
+        # DOF6=255 → d6i=3 → 命中 "0,0,3,0"=20.0，邻域可能还有其他值
+        self.assertGreaterEqual(result, 20.0)
+        # 但应远低于 DOF6=0 的限制
+        result_d6_0 = self.rule.query_dof0_limit(
+            dof1_val=0.0, dof9_val=0.0,
+            finger_flexions=[0.0, 0.0, 0.0, 0.0],
+            dof6_val=0.0)
+        self.assertLess(result, result_d6_0)
+
+    def test_query_accepts_dof6_param(self):
+        """query_dof0_limit 接受 dof6_val 关键字参数"""
+        # 不传 dof6_val 时应使用默认行为（仍能调用不报错）
+        result = self.rule.query_dof0_limit(
+            dof1_val=128.0, dof9_val=128.0,
+            finger_flexions=[128.0, 128.0, 128.0, 128.0],
+            dof6_val=128.0)
+        self.assertIsInstance(result, float)
+
+    def test_check_uses_dof6(self):
+        """check() 自动从 dof[6] 提取 DOF6 并影响碰撞判定"""
+        # DOF6=0 + 手指弯曲 → 应触发碰撞修正（DOF0 被钳位到安全值）
+        dof_tight = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 128.0, 128.0, 0.0]
+        safe_tight, violations_tight = self.rule.check(dof_tight)
+
+        # DOF6=255 + 手指弯曲 → 碰撞修正应更宽松或无修正
+        dof_spread = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 255.0, 128.0, 128.0, 0.0]
+        safe_spread, violations_spread = self.rule.check(dof_spread)
+
+        # DOF6=0 时碰撞更严重，DOF0 应被钳位到更高值
+        # DOF6=255 时碰撞风险更低，DOF0 钳位应更小
+        # 两者不应相等（证明 DOF6 维度在生效）
+        self.assertNotEqual(safe_tight[0], safe_spread[0],
+            "DOF6=0 and DOF6=255 should produce different DOF0 clamp values")
+        self.assertGreater(safe_tight[0], safe_spread[0],
+            "DOF6=0 should result in higher (stricter) DOF0 clamp than DOF6=255")
 
 
 if __name__ == '__main__':
