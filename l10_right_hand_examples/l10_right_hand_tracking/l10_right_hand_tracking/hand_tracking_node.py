@@ -4,7 +4,17 @@ MediaPipe 21 关键点 → 5 指尖 3D 目标 → /l10_gateway/cmd/control_point
                    → 手掌法平面 + 距离 → /l10_gateway/cmd/camera
 右手沿画面中轴镜像, 左手不翻转
 """
+import os
+
 import cv2
+
+# 修复 cv2 Qt 平台插件路径：opencv-python 在 import 时会把
+# QT_QPA_PLATFORM_PLUGIN_PATH 覆盖为自带的空目录 cv2/qt/plugins，导致 cv2.imshow
+# 因找不到 xcb 插件而 SIGABRT。必须在 import cv2 之后、把路径指回 cv2 自己的
+# qt_disabled 插件（详见 qt_plugin_fix.py）。仅作用于本进程，不影响 RPS。
+from l10_right_hand_tracking.qt_plugin_fix import apply as _apply_cv2_qt_fix
+_apply_cv2_qt_fix()
+
 import math
 import numpy as np
 
@@ -33,6 +43,8 @@ from hand_forward_kinematics.kinematics import (
     expand_to_20_joints,
     compute_fk,
 )
+
+from l10_right_hand_tracking.camera_capture import CameraCapture
 
 
 # MediaPipe 指尖索引 → MuJoCo 控制点顺序
@@ -347,6 +359,52 @@ def draw_tracking(img, landmarks, handedness, targets, curls):
 
 
 # ---------------------------------------------------------------------------
+# UI 工具：中文文本绘制（cv2.putText 不支持中文，用 PIL + CJK 字体）
+# ---------------------------------------------------------------------------
+
+_CN_FONT_PATHS = [
+    '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',
+    '/usr/share/fonts/truetype/arphic/uming.ttc',
+    '/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc',
+]
+_cn_font_path: str | None = None
+_cn_font_cache: dict[int, object] = {}
+
+
+def _resolve_cn_font_path() -> str | None:
+    global _cn_font_path
+    if _cn_font_path is None:
+        for path in _CN_FONT_PATHS:
+            if os.path.exists(path):
+                _cn_font_path = path
+                break
+    return _cn_font_path
+
+
+def _draw_centered_cn_text(img, text, font_size=40, color=(0, 255, 255)):
+    """在图像中央绘制中文（PIL + CJK 字体），字体不可用时降级 cv2 英文。"""
+    path = _resolve_cn_font_path()
+    h, w = img.shape[:2]
+    if path:
+        from PIL import Image, ImageDraw, ImageFont
+        font = _cn_font_cache.get(font_size)
+        if font is None:
+            font = ImageFont.truetype(path, font_size)
+            _cn_font_cache[font_size] = font
+        pil_img = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+        draw = ImageDraw.Draw(pil_img)
+        bbox = draw.textbbox((0, 0), text, font=font)
+        tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+        org = ((w - tw) // 2 - bbox[0], (h - th) // 2 - bbox[1])
+        draw.text(org, text, font=font, fill=(color[2], color[1], color[0]))
+        return cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
+    # 降级：字体缺失时用英文
+    cv2.putText(img, "Waiting for camera...", (w // 2 - 140, h // 2),
+                cv2.FONT_HERSHEY_SIMPLEX, 1.0, color, 2, cv2.LINE_AA)
+    return img
+
+
+# ---------------------------------------------------------------------------
 # ROS2 节点
 # ---------------------------------------------------------------------------
 
@@ -397,13 +455,10 @@ class HandTrackingNode(Node):
 
         self._init_mediapipe()
 
-        self.cap = cv2.VideoCapture(cam_id, cv2.CAP_V4L2)
-        if not self.cap.isOpened():
-            self.get_logger().error(f'无法打开摄像头 (camera_id={cam_id})')
-            raise SystemExit(1)
-        self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
-        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+        # 摄像头在后台线程异步采集（与 RPS 对齐）：
+        # 打不开也不崩溃，_tick 通过 get_frame()==None 显示「等待摄像头...」
+        self._capture = CameraCapture(cam_id)
+        self._capture.start()
 
         qos = QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE)
 
@@ -475,6 +530,17 @@ class HandTrackingNode(Node):
         if len(msg.position) >= 10:
             self._gateway_target_dof = [float(v) for v in msg.position[:10]]
 
+    def _show_waiting_frame(self):
+        """摄像头未就绪时的占位画面 —— 居中显示「等待摄像头...」（与 RPS 一致）。
+
+        摄像头后台线程尚未产出首帧（或打开失败）时，_tick 调用本方法在
+        OpenCV 窗口显示等待提示，而不是空窗口或直接崩溃。
+        """
+        img = np.zeros((480, 640, 3), dtype=np.uint8)
+        img = _draw_centered_cn_text(img, "等待摄像头...", font_size=42)
+        cv2.imshow('L10 Hand Tracking', img)
+        cv2.waitKey(1)  # 驱动事件循环，避免等待态下窗口无响应
+
     def _tick(self):
         """定时器回调 —— 每帧执行一次完整的检测-映射-发布-渲染流水线。
 
@@ -491,8 +557,9 @@ class HandTrackingNode(Node):
         10. 发布控制点和相机命令到 ROS 话题
         11. 渲染 OpenCV 调试窗口
         """
-        ret, frame = self.cap.read()
-        if not ret:
+        frame = self._capture.get_frame()
+        if frame is None:
+            self._show_waiting_frame()
             return
 
         frame = cv2.flip(frame, 1)  # 镜像（自拍视角）
@@ -702,8 +769,8 @@ class HandTrackingNode(Node):
             return {"landmarks": lm, "handedness": hand_label}
 
     def destroy_node(self):
-        if hasattr(self, 'cap') and self.cap.isOpened():
-            self.cap.release()
+        if hasattr(self, '_capture'):
+            self._capture.stop()
         if USE_TASK_API and hasattr(self, 'detector'):
             self.detector.close()
         elif hasattr(self, 'hands'):

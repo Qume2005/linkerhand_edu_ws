@@ -15,6 +15,9 @@ from ament_index_python.packages import get_package_share_directory
 
 
 def generate_launch_description():
+    # 注: Qt 平台插件修复在节点内 (import cv2 之后) 完成 —— launch 层设置会被
+    # cv2 的 import 覆盖，故不在此设置。详见 hand_tracking_node.py 顶部。
+
     # 启动仿真后端 + 网关
     sim_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(os.path.join(
