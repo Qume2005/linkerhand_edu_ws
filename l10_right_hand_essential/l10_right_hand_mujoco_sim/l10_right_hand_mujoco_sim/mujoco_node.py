@@ -17,6 +17,7 @@ L10 右手 MuJoCo 仿真 ROS2 节点
 """
 
 import os
+import signal
 import time
 import json
 import threading
@@ -225,7 +226,16 @@ class L10RightMujocoNode(Node):
         xml_path = get_urdf_path()
         self.get_logger().info(f"Loading model from: {xml_path}")
 
-        self.model = mujoco.MjModel.from_xml_path(xml_path)
+        try:
+            self.model = mujoco.MjModel.from_xml_path(xml_path)
+        except (OSError, Exception) as e:
+            self.get_logger().error(
+                "MuJoCo model loading failed: %s. "
+                "This may be due to missing AVX/AVX2 CPU instructions. "
+                "MuJoCo 3.4.0 requires AVX-capable hardware." % str(e)
+            )
+            raise RuntimeError("MuJoCo requires AVX/AVX2 CPU instructions") from e
+
         self.model.dof_damping[:] = 0.8
         self.data = mujoco.MjData(self.model)
 

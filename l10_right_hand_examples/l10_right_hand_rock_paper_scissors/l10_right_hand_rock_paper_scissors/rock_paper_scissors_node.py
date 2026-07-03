@@ -35,6 +35,9 @@ from l10_right_hand_rock_paper_scissors.game_widget import GameWidget
 from l10_right_hand_rock_paper_scissors.gesture_detector import GestureDetector
 from l10_right_hand_rock_paper_scissors.poses import GESTURE_POSES, READY_POSE
 
+# cv2 导入会覆写 QT_QPA_PLATFORM_PLUGIN_PATH，必须在所有 cv2 导入完成后重新设置
+os.environ['QT_QPA_PLATFORM_PLUGIN_PATH'] = '/usr/lib/x86_64-linux-gnu/qt5/plugins/platforms'
+
 
 class RockPaperScissorsNode(Node):
     """石头剪刀布游戏 ROS 节点。

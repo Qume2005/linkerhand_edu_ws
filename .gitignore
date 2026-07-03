@@ -30,3 +30,6 @@ llm_settings.json
 
 # reference codes
 references/
+
+# packaging iso output
+packaging/iso/out/

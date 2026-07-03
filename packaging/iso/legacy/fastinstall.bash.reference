@@ -1,0 +1,149 @@
+# disable nomodeset to fix resolution issue
+cat > /usr/local/sbin/firstboot-fix-grub.sh << 'EOF'
+#!/bin/sh
+set -e
+
+GRUB_CONF="/etc/default/grub"
+MARK="/var/lib/firstboot/grub-fixed"
+
+[ -f "$MARK" ] && exit 0
+[ -f "$GRUB_CONF" ] || exit 0
+
+cp "$GRUB_CONF" "${GRUB_CONF}.bak"
+
+sed -i 's/\bnomodeset\b//g' "$GRUB_CONF"
+sed -i 's/vga=[0-9a-fA-FxX]\+//g' "$GRUB_CONF"
+
+update-grub || cp "${GRUB_CONF}.bak" "$GRUB_CONF"
+
+mkdir -p "$(dirname "$MARK")"
+: > "$MARK"
+EOF
+chmod 755 /usr/local/sbin/firstboot-fix-grub.sh
+cat > /etc/systemd/system/firstboot-fix-grub.service << 'EOF'
+[Unit]
+Description=First boot: remove nomodeset and update grub
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/firstboot-fix-grub.sh
+
+[Install]
+WantedBy=multi-user.target
+EOF
+ln -sf /etc/systemd/system/firstboot-fix-grub.service \
+       /etc/systemd/system/multi-user.target.wants/
+
+
+
+
+# config apt source mirror
+sed -i 's|http://archive.ubuntu.com|https://mirrors.aliyun.com|g' /etc/apt/sources.list.d/ubuntu.sources \
+    && sed -i 's|http://security.ubuntu.com|https://mirrors.aliyun.com|g' /etc/apt/sources.list.d/ubuntu.sources
+
+# remove unecessory softwares
+apt remove libreoffice-common snapd rhythmbox shotwell remmina -y
+apt autoremove -y
+
+# config time zone
+ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
+# config UTF-8 locale, as ROS2 doc writes
+apt update && apt install locales curl -y
+locale-gen zh_CN zh_CN.UTF-8
+update-locale LC_ALL=zh_CN.UTF-8 LANG=zh_CN.UTF-8
+export LANG=zh_CN.UTF-8
+# disable user directories auto-translation
+echo "enabled=False
+      filename_encoding=UTF-8" > /etc/xdg/user-dirs.conf
+
+apt install software-properties-common -y
+add-apt-repository universe -y
+
+# config ROS2 source
+export ROS_APT_SOURCE_VERSION=$(curl -s https://api.github.com/repos/ros-infrastructure/ros-apt-source/releases/latest | grep -F "tag_name" | awk -F'"' '{print $4}')
+curl -L -o /tmp/ros2-apt-source.deb "https://github.com/ros-infrastructure/ros-apt-source/releases/download/${ROS_APT_SOURCE_VERSION}/ros2-apt-source_${ROS_APT_SOURCE_VERSION}.$(. /etc/os-release && echo ${UBUNTU_CODENAME:-${VERSION_CODENAME}})_all.deb"
+dpkg -i /tmp/ros2-apt-source.deb
+
+# install ros-dev-tools
+sed -i 's/^Suites:.*/Suites: noble noble-updates noble-backports/' /etc/apt/sources.list.d/ubuntu.sources
+apt clean
+apt update
+apt full-upgrade -y
+apt update && sudo apt install ros-dev-tools -y
+
+# install ros
+apt upgrade && apt install ros-jazzy-ros-base -y
+echo ". /opt/ros/jazzy/setup.sh && . ~/Desktop/install/setup.sh" >> /etc/skel/.bashrc
+
+# system & project dependencies
+apt-get update && apt-get install -y --no-install-recommends \
+    python3-pip \
+    libgl1 \
+    libglib2.0-0 \
+    libfontconfig1 \
+    libxcb-xinerama0 \
+    libxcb-cursor0 \
+    python3-pyside2.qtcore \
+    python3-pyside2.qtgui \
+    python3-pyside2.qtwidgets \
+    python3-pygame \
+    python3-openai \
+    ros-jazzy-robot-state-publisher \
+    ros-jazzy-rviz2 \
+    ros-jazzy-geometry-msgs \
+    fonts-noto-cjk \
+    fcitx5 \
+    fcitx5-chinese-addons \
+    fcitx5-frontend-qt5 \
+    dbus \
+    dbus-x11 \
+    can-utils \
+    && rm -rf /var/lib/apt/lists/*
+
+# install Chinese typing tool
+mkdir -p /root/.config/fcitx5 && \
+    printf '[Hotkey]\nTrigger=Ctrl+space\n' > /root/.config/fcitx5/config && \
+    printf '[Groups/0]\nName=Default\nDefault Layout=us\nDefaultIM=pinyin\n\
+[Groups/0/Items/0]\nName=keyboard-us\nLayout=\n\
+[Groups/0/Items/1]\nName=pinyin\nLayout=\n' > /root/.config/fcitx5/profile
+
+# python dependencies
+pip3 config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
+pip3 install --no-cache-dir --break-system-packages \
+    -i https://pypi.tuna.tsinghua.edu.cn/simple \
+    mujoco==3.4.0 \
+    mediapipe==0.10.32 \
+    opencv-python-headless == 4.13.0.92 #\
+    #openai>=1.12.0 \
+    #pygame==2.5.2 \
+    #pytest==7.4.4
+
+mkdir /etc/skel/Desktop
+mv l10_right_hand_essential /etc/skel/Desktop/l10_right_hand_essential
+mv l10_right_hand_examples /etc/skel/Desktop/l10_right_hand_examples
+mv README.md /etc/skel/Desktop/README.md
+echo "" > "/etc/skel/Desktop/当前版本尚在实验，注意安全！"
+# create project launchers
+echo "colcon build && source install/setup.bash && ros2 launch l10_right_hand_bootstrap sim.launch.py" > "/etc/skel/Desktop/上位机（仿真）.sh"
+echo "colcon build && source install/setup.bash \
+      && sudo ip link set can0 up type can bitrate 1000000 \
+      && ros2 launch l10_right_hand_bootstrap real.launch.py can_port:=can0 is_touch:=true topic_hz:=60" \
+    > "/etc/skel/Desktop/上位机（真机）.sh" \
+    && chmod 755 "/etc/skel/Desktop/上位机（真机）.sh"
+echo "colcon build && source install/setup.bash && ros2 launch l10_right_hand_llm llm_control.launch.py" \
+    > "/etc/skel/Desktop/LLM控制（仿真）.sh" && chmod 755 "/etc/skel/Desktop/LLM控制（仿真）.sh"
+echo "colcon build && source install/setup.bash \
+      && sudo ip link set can0 up type can bitrate 1000000 \
+      && ros2 launch l10_right_hand_llm llm_control_real.launch.py" \
+    > "/etc/skel/Desktop/LLM控制（真机）.sh" && chmod 755 "/etc/skel/Desktop/LLM控制（真机）.sh"
+echo "colcon build && source install/setup.bash && ros2 launch l10_right_hand_tracking hand_tracking_sim.launch.py" \
+    > "/etc/skel/Desktop/人手跟随（仿真）.sh" && chmod 755 "/etc/skel/Desktop/人手跟随（仿真）.sh"
+echo "colcon build && source install/setup.bash && ros2 launch l10_right_hand_rock_paper_scissors rock_paper_scissors_sim.launch.py" \
+    > "/etc/skel/Desktop/石头剪刀布（仿真）.sh" && chmod 755  "/etc/skel/Desktop/石头剪刀布（仿真）.sh"
+echo "colcon build && source install/setup.bash \
+      && sudo ip link set can0 up type can bitrate 1000000 \
+      && ros2 launch l10_right_hand_rock_paper_scissors rock_paper_scissors_real.launch.py" \
+    > "/etc/skel/Desktop/石头剪刀布（真机）.sh" && chmod 755  "/etc/skel/Desktop/石头剪刀布（真机）.sh"
+
+#rm ~/fastinstall.bash

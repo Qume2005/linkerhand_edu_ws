@@ -1,10 +1,16 @@
 """
-Gesture Detector 单元测试 — _classify() 静态方法。
+Gesture Detector 单元测试 — _classify() 静态方法 + 模型下载路径回归测试。
 """
+
+import os
+import sys
+import unittest.mock as mock
+from pathlib import Path
 
 import pytest
 
 from l10_right_hand_rock_paper_scissors.gesture_detector import GestureDetector
+import l10_right_hand_rock_paper_scissors.gesture_detector as _gd_module
 
 
 class _FakeLandmark:
@@ -136,3 +142,167 @@ class TestClassify:
         })
         result = GestureDetector._classify(lm)
         assert result == "none"
+
+
+class TestModelDownloadPath:
+    """回归测试：模型下载目标路径必须是用户可写目录，而非系统目录。"""
+
+    # 用户可写路径（gesture_detector.py 第 73-75 行构建）
+    EXPECTED_USER_PATH = str(
+        Path.home() / ".local" / "share" / "mediapipe" / "tasks" / "hand_landmarker.task"
+    )
+
+    # 旧版系统路径（不应被使用）
+    SYSTEM_PATH = (
+        "/usr/local/lib/python3.12/dist-packages/"
+        "l10_right_hand_rock_paper_scissors/"
+        "l10_right_hand_rock_paper_scissors/hand_landmarker.task"
+    )
+
+    @mock.patch.object(_gd_module, "_USE_LEGACY_API", False)
+    @mock.patch("l10_right_hand_rock_paper_scissors.gesture_detector."
+                "HandLandmarker.create_from_options")
+    @mock.patch("urllib.request.urlretrieve")
+    @mock.patch("os.path.isfile")
+    @mock.patch("os.path.exists")
+    @mock.patch("zipfile.ZipFile")
+    def test_download_target_is_user_writable_path(self, mock_zipfile,
+                                                   mock_exists,
+                                                   mock_isfile,
+                                                   mock_urlretrieve,
+                                                   mock_create_options):
+        """当模型文件不存在时，下载目标必须是用户可写目录。"""
+        captured_target = {}
+        download_called = []
+
+        def fake_isfile(path):
+            # 下载前返回 False；下载后对主路径返回 True
+            if download_called and path == self.EXPECTED_USER_PATH:
+                return True
+            return False
+
+        def fake_exists(path):
+            return False
+
+        def fake_urlretrieve(url, filename):
+            captured_target["filename"] = filename
+            download_called.append(True)
+            return filename, {}
+
+        # zipfile.ZipFile 用作 context manager 时需要支持 __enter__/__exit__
+        mock_zipfile.return_value.__enter__ = mock.Mock(
+            return_value=mock_zipfile.return_value)
+        mock_zipfile.return_value.__exit__ = mock.Mock(return_value=False)
+
+        mock_isfile.side_effect = fake_isfile
+        mock_exists.side_effect = fake_exists
+        mock_urlretrieve.side_effect = fake_urlretrieve
+        mock_create_options.return_value = mock.MagicMock()
+
+        GestureDetector(camera_id=0)
+
+        # 断言：下载目标是用户可写路径
+        assert "filename" in captured_target, (
+            "urllib.request.urlretrieve 未被调用，"
+            "无法验证下载目标路径"
+        )
+        assert captured_target["filename"] == self.EXPECTED_USER_PATH, (
+            f"下载目标路径错误: 得到 {captured_target['filename']},"
+            f"期望 {self.EXPECTED_USER_PATH}"
+        )
+        # 确保不是系统路径
+        assert captured_target["filename"] != self.SYSTEM_PATH, (
+            "下载目标不应是系统目录: " + self.SYSTEM_PATH
+        )
+
+    @mock.patch.object(_gd_module, "_USE_LEGACY_API", False)
+    @mock.patch("l10_right_hand_rock_paper_scissors.gesture_detector."
+                "HandLandmarker.create_from_options")
+    @mock.patch("urllib.request.urlretrieve")
+    @mock.patch("os.path.isfile")
+    @mock.patch("os.path.exists")
+    @mock.patch("zipfile.ZipFile")
+    def test_fallback_to_alternate_path_when_primary_invalid(
+            self, mock_zipfile, mock_exists, mock_isfile,
+            mock_urlretrieve, mock_create_options):
+        """主路径模型无效且备用路径有效时，应使用备用路径。"""
+        captured_target = {}
+        # 备用路径是 mediapipe 包内的路径（与主路径不同）
+        alternate_path = os.path.join(
+            _gd_module.mp.__path__[0], "tasks", "hand_landmarker.task"
+        )
+
+        def fake_isfile(path):
+            # 主路径 isfile=False（无效）；备用路径 isfile=True
+            if path == alternate_path:
+                return True
+            return False
+
+        def fake_exists(path):
+            # 备用路径存在
+            if path == alternate_path:
+                return True
+            return False
+
+        def fake_urlretrieve(url, filename):
+            captured_target["filename"] = filename
+            return filename, {}
+
+        def fake_zipfile_init(path, mode):
+            # 备用路径视为有效 zip；主路径视为无效 zip
+            if path == alternate_path:
+                return mock.MagicMock()
+            raise zipfile.BadZipFile
+
+        mock_zipfile.side_effect = fake_zipfile_init
+        mock_zipfile.return_value.__enter__ = mock.Mock(
+            return_value=mock_zipfile.return_value)
+        mock_zipfile.return_value.__exit__ = mock.Mock(return_value=False)
+
+        mock_isfile.side_effect = fake_isfile
+        mock_exists.side_effect = fake_exists
+        mock_urlretrieve.side_effect = fake_urlretrieve
+        mock_create_options.return_value = mock.MagicMock()
+
+        GestureDetector(camera_id=0)
+
+        # 应该触发一次下载（到主路径）
+        assert captured_target["filename"] == self.EXPECTED_USER_PATH
+        # create_from_options 应该被调用（备用路径被使用）
+        args, kwargs = mock_create_options.call_args
+        used_options = args[0] if args else kwargs.get("options", None)
+        assert used_options is not None
+        assert used_options.base_options.model_asset_path == alternate_path
+
+    @mock.patch.object(_gd_module, "_USE_LEGACY_API", False)
+    @mock.patch("l10_right_hand_rock_paper_scissors.gesture_detector."
+                "HandLandmarker.create_from_options")
+    @mock.patch("urllib.request.urlretrieve")
+    @mock.patch("os.path.isfile")
+    @mock.patch("os.path.exists")
+    @mock.patch("zipfile.ZipFile")
+    def test_raises_when_both_paths_invalid(
+            self, mock_zipfile, mock_exists, mock_isfile,
+            mock_urlretrieve, mock_create_options):
+        """主路径和备用路径均无效时，应抛出 RuntimeError。"""
+        def fake_isfile(path):
+            return False
+
+        def fake_exists(path):
+            return False
+
+        def fake_zipfile_init(path, mode):
+            raise zipfile.BadZipFile
+
+        mock_zipfile.side_effect = fake_zipfile_init
+        mock_zipfile.return_value.__enter__ = mock.Mock(
+            return_value=mock_zipfile.return_value)
+        mock_zipfile.return_value.__exit__ = mock.Mock(return_value=False)
+
+        mock_isfile.side_effect = fake_isfile
+        mock_exists.side_effect = fake_exists
+        mock_urlretrieve.side_effect = lambda url, filename: (filename, {})
+        mock_create_options.return_value = mock.MagicMock()
+
+        with pytest.raises(RuntimeError, match="模型无效"):
+            GestureDetector(camera_id=0)

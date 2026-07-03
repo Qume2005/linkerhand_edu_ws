@@ -9,8 +9,11 @@
 """
 
 import logging
+import os
 import threading
 import time
+import urllib.request
+import zipfile
 
 import cv2
 import numpy as np
@@ -69,15 +72,48 @@ class GestureDetector:
             )
         else:
             # Task API: 模型路径和 API 参照 tracking 例程
-            model_path = mp.__path__[0] + "/tasks/hand_landmarker.task"
-            import os
-            if not os.path.exists(model_path):
-                import urllib.request
+            model_path = os.path.join(
+                os.path.expanduser("~"), ".local", "share", "mediapipe",
+                "tasks", "hand_landmarker.task")
+            alternate_model_path = os.path.join(
+                mp.__path__[0], "tasks", "hand_landmarker.task")
+            os.makedirs(os.path.dirname(model_path), exist_ok=True)
+            os.makedirs(os.path.dirname(alternate_model_path), exist_ok=True)
+
+            def _is_valid_model(path: str) -> bool:
+                """Check if the .task file is a valid zip archive."""
+                if not os.path.isfile(path):
+                    return False
+                try:
+                    with zipfile.ZipFile(path, 'r'):
+                        return True
+                except zipfile.BadZipFile:
+                    return False
+
+            if not _is_valid_model(model_path):
+                if os.path.isfile(model_path):
+                    os.remove(model_path)
                 logger.info("下载 HandLandmarker 模型...")
-                urllib.request.urlretrieve(
-                    'https://storage.googleapis.com/mediapipe-models/'
-                    'hand_landmarker/hand_landmarker/float16/1/'
-                    'hand_landmarker.task', model_path)
+                try:
+                    urllib.request.urlretrieve(
+                        'https://storage.googleapis.com/mediapipe-models/'
+                        'hand_landmarker/hand_landmarker/float16/1/'
+                        'hand_landmarker.task', model_path)
+                except Exception as e:
+                    logger.error("模型下载失败: %s" % e)
+                    raise
+
+            if not _is_valid_model(model_path):
+                if _is_valid_model(alternate_model_path):
+                    logger.warning("主路径模型无效，使用备用路径: %s",
+                                   alternate_model_path)
+                    model_path = alternate_model_path
+                else:
+                    raise RuntimeError(
+                        "HandLandmarker 模型无效，主路径与备用路径均不可用: "
+                        f"{model_path}, {alternate_model_path}"
+                    )
+
             base_options = BaseOptions(model_asset_path=model_path)
             options = mp.tasks.vision.HandLandmarkerOptions(
                 base_options=base_options,
