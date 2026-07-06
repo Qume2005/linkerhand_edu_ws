@@ -319,7 +319,7 @@ class HeatmapWidget(QWidget):
         COLS: 压力矩阵列数 (6)
     """
 
-    FINGER_NAMES = ["Pinky", "Ring", "Middle", "Index", "Thumb"]
+    FINGER_NAMES = ["小指", "无名指", "中指", "食指", "拇指"]
     FINGER_COLORS = [
         QColor(218, 112, 214),
         QColor(255, 215, 0),
@@ -382,7 +382,7 @@ class HeatmapWidget(QWidget):
 
         # 手指名称标签
         p.setPen(QPen(self.FINGER_COLORS[self.finger_index]))
-        p.setFont(QFont("Sans", 9, QFont.Bold))
+        p.setFont(QFont("Sans", 10, QFont.Bold))
         p.drawText(QRectF(0, 0, self.width(), label_h), Qt.AlignCenter,
                    self.FINGER_NAMES[self.finger_index])
 
@@ -403,9 +403,9 @@ class HeatmapWidget(QWidget):
 
         # 质量数值
         p.setPen(QPen(QColor(COLOR_TEXT_DIM)))
-        p.setFont(QFont("Monospace", 8))
+        p.setFont(QFont("Monospace", 9))
         p.drawText(QRectF(0, self.height() - mass_h, self.width(), mass_h),
-                   Qt.AlignCenter, f"{self._mass:.0f}g")
+                   Qt.AlignCenter, f"{self._mass:.0f}")
 
         p.end()
 
@@ -429,11 +429,11 @@ class _ColorBarWidget(QWidget):
 
 
 class TactileStripWidget(QWidget):
-    """触觉传感器底部条形控件 —— 5 个手指热力图 + 垂直色标
+    """触觉传感器条形控件 —— 5 个手指热力图 + 垂直色标 (位于右侧面板下方)
 
-    水平排列显示 5 个手指的热力图 (HeatmapWidget)，左侧附带垂直色标条。
+    水平排列显示 5 个手指的热力图 (HeatmapWidget)，右侧附带垂直色标条。
     接收来自网关的触觉矩阵数据和质量数据，分发到对应的热力图子控件。
-    排列顺序: 色标 | 标题 | 小指 | 无名指 | 中指 | 食指 | 拇指
+    排列顺序: 标题 | 小指 | 无名指 | 中指 | 食指 | 拇指 | 色标
     """
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -441,7 +441,23 @@ class TactileStripWidget(QWidget):
         layout.setContentsMargins(10, 4, 10, 4)
         layout.setSpacing(26)
 
-        # 色标 (最左边)
+        # 标题
+        title = QLabel("触觉传感器")
+        title.setFont(QFont("Sans", 11, QFont.Bold))
+        title.setStyleSheet(f"color: {COLOR_TEXT};")
+        title.setFixedWidth(95)
+        layout.addWidget(title)
+
+        layout.addStretch()
+
+        # 5 个热力图: 小指 → 大拇指 (index 0=little, 1=ring, 2=middle, 3=index, 4=thumb)
+        self.heatmaps = []
+        for i in range(5):
+            hw = HeatmapWidget(i)
+            layout.addWidget(hw)
+            self.heatmaps.append(hw)
+
+        # 色标 (最右边)
         legend = QWidget()
         legend.setFixedWidth(24)
         legend_lay = QVBoxLayout(legend)
@@ -465,21 +481,6 @@ class TactileStripWidget(QWidget):
         legend_lay.addWidget(lbl_min)
 
         layout.addWidget(legend)
-
-        title = QLabel("Tactile Sensor")
-        title.setFont(QFont("Sans", 10, QFont.Bold))
-        title.setStyleSheet(f"color: {COLOR_TEXT};")
-        title.setFixedWidth(95)
-        layout.addWidget(title)
-
-        layout.addStretch()
-
-        # 5 个热力图: 小指 → 大拇指 (index 0=little, 1=ring, 2=middle, 3=index, 4=thumb)
-        self.heatmaps = []
-        for i in range(5):
-            hw = HeatmapWidget(i)
-            layout.addWidget(hw)
-            self.heatmaps.append(hw)
 
     def update_tactile(self, matrix_data, mass_data):
         # 热力图顺序: 0=little, 1=ring, 2=middle, 3=index, 4=thumb
@@ -637,9 +638,9 @@ class _StateSignal(QWidget):
 class ControlPanelWindow(QWidget):
     """L10 手部控制面板主窗口 —— 滑块控制 + 3D 骨架交互 + 触觉热力图
 
-    窗口分为上下两个区域:
-    - 上部: 左侧 10 个双指示器滑块 + 预设手势按钮，右侧 3D 骨架交互控件
-    - 下部: 5 个手指的触觉传感器热力图条
+    窗口分为左右两个区域:
+    - 左半: 10 个双指示器滑块 + 速度限制 + 操作按钮 + 手势管理面板 (预设/自定义/序列)
+    - 右半: 3D 骨架交互控件 + 触觉传感器热力图条 (在右侧下方)
 
     线程模型:
     - Qt 主线程: 处理 UI 渲染和用户交互
@@ -699,17 +700,16 @@ class ControlPanelWindow(QWidget):
         self._build_ui()
 
     def _build_ui(self):
-        root_vbox = QVBoxLayout(self)
-        root_vbox.setContentsMargins(0, 0, 0, 0)
-        root_vbox.setSpacing(0)
+        root_hbox = QHBoxLayout(self)
+        root_hbox.setContentsMargins(0, 0, 0, 0)
+        root_hbox.setSpacing(0)
 
-        # === 上部: 原有水平布局 (滑块 + 3D 模型) ===
-        h_container = QWidget()
-        outer = QHBoxLayout(h_container)
-        outer.setContentsMargins(20, 15, 20, 15)
-        outer.setSpacing(0)
+        # === 左半边: 控制面板 (标题 + 滑块 + 手势管理) ===
+        left_container = QWidget()
+        left_outer = QVBoxLayout(left_container)
+        left_outer.setContentsMargins(20, 15, 10, 15)
+        left_outer.setSpacing(0)
 
-        # ========== 左侧: 滑块面板 ==========
         left = QVBoxLayout()
         left.setSpacing(8)
 
@@ -806,33 +806,43 @@ class ControlPanelWindow(QWidget):
         left.addWidget(self._gesture_panel)
 
         left.addStretch()
-        outer.addLayout(left)
+        left_outer.addLayout(left)
+        left_outer.addStretch()
 
-        # ========== 竖线分隔 + 间距 ==========
+        root_hbox.addWidget(left_container, stretch=1)
+
+        # === 竖线分隔 ===
         sep = QFrame()
         sep.setFrameShape(QFrame.VLine)
         sep.setStyleSheet("color: #444444;")
-        outer.addWidget(sep)
-        outer.addSpacing(30)
+        root_hbox.addWidget(sep)
+        root_hbox.addSpacing(10)
 
-        # ========== 右侧: 骨架交互 ==========
+        # === 右半边: 3D 骨架 + 触觉传感器 ===
+        right_container = QWidget()
+        right_vbox = QVBoxLayout(right_container)
+        right_vbox.setContentsMargins(10, 15, 20, 15)
+        right_vbox.setSpacing(8)
+
+        # 3D 骨架
         self.skeleton = HandModelWidget()
         self.skeleton.set_dof_values([d["default"] for d in DOF_DEFINITIONS])
         self.skeleton.on_dof_changed = self._on_skeleton_drag
         self.skeleton.on_camera_changed = self._on_camera_changed
         self.skeleton.setMinimumWidth(350)
-        outer.addWidget(self.skeleton, stretch=1)
+        right_vbox.addWidget(self.skeleton, stretch=1)
 
-        root_vbox.addWidget(h_container, stretch=1)
-
-        # === 下部: 触觉传感器热力图条 ===
+        # 分隔线
         sep_bottom = QFrame()
         sep_bottom.setFrameShape(QFrame.HLine)
         sep_bottom.setStyleSheet("color: #444444;")
-        root_vbox.addWidget(sep_bottom)
+        right_vbox.addWidget(sep_bottom)
 
+        # 触觉传感器热力图条
         self.tactile_strip = TactileStripWidget()
-        root_vbox.addWidget(self.tactile_strip)
+        right_vbox.addWidget(self.tactile_strip)
+
+        root_hbox.addWidget(right_container, stretch=1)
 
     def _dim_label(self, text):
         lbl = QLabel(text)
@@ -983,15 +993,23 @@ class ControlPanelWindow(QWidget):
         # 在 _syncing 外发布，避免回调阻塞
         self.publish_current()
 
+    def _stop_any_sequence(self) -> None:
+        """停止序列播放并恢复序列按钮可用状态。"""
+        self._stop_sequence_playback()
+        self._gesture_panel.set_sequences_enabled(True)
+
     def open_hand(self):
         from linker_hand_description.gesture_presets import GESTURE_PRESETS
+        self._stop_any_sequence()
         self._set_all(list(GESTURE_PRESETS["open"]))
 
     def close_hand(self):
         from linker_hand_description.gesture_presets import GESTURE_PRESETS
+        self._stop_any_sequence()
         self._set_all(list(GESTURE_PRESETS["fist"]))
 
     def reset_hand(self):
+        self._stop_any_sequence()
         self._set_all([d["default"] for d in DOF_DEFINITIONS])
 
     def preset_ok(self):
@@ -1009,7 +1027,9 @@ class ControlPanelWindow(QWidget):
     # ── 手势管理信号槽 ──────────────────────────────────────────────
 
     def _on_gesture_selected(self, name: str, dof_values: tuple) -> None:
-        """用户选择了手势（预设或自定义）→ 设置所有滑块并发布。"""
+        """用户选择了手势（预设或自定义）→ 停止序列 → 设置所有滑块并发布。"""
+        self._stop_sequence_playback()
+        self._gesture_panel.set_sequences_enabled(True)
         self._set_all(list(dof_values))
 
     def _open_gesture_editor(self, gesture_name: str | None = None) -> None:

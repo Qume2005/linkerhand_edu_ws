@@ -12,13 +12,20 @@
 
 ```
 ControlPanelWindow
-  ├─ 左侧: 10 个 DualSlider (灰色=当前状态, 白色=目标, 0-255 范围)
-  └─ 右侧: HandModelWidget
-       ├─ MuJoCo model/data (自有实例, 独立于仿真节点)
-       ├─ mujoco.Renderer (离屏渲染 640×480)
-       ├─ MjvCamera (自由摄像机, azimuth=-135°, elevation=-25°)
-       ├─ QTimer 30 FPS 渲染循环
-       └─ 5 个控制点 (每个指尖一个)
+  ├─ 左半: 控制面板 (QVBoxLayout)
+  │    ├─ 标题 + 图例
+  │    ├─ 10 个 DualSlider (灰色=当前状态, 白色=目标, 0-255 范围)
+  │    ├─ 速度限制滑块
+  │    ├─ 操作按钮 (抓取/张开/复位)
+  │    └─ GestureManagePanel (预设/自定义/序列 三标签页)
+  └─ 右半: 3D 交互区 (QVBoxLayout)
+       ├─ HandModelWidget
+       │    ├─ MuJoCo model/data (自有实例, 独立于仿真节点)
+       │    ├─ mujoco.Renderer (离屏渲染 640×480)
+       │    ├─ MjvCamera (自由摄像机, azimuth=-135°, elevation=-25°)
+       │    ├─ QTimer 30 FPS 渲染循环
+       │    └─ 5 个控制点 (每个指尖一个)
+       └─ TactileStripWidget (5 指热力图 + 色标, 排列: 标题 | 热力图×5 | 色标)
 ```
 
 ### 2.1 控制点定义

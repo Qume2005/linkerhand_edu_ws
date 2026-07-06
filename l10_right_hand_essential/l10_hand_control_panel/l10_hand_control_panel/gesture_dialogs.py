@@ -709,6 +709,7 @@ class GestureManagePanel(QWidget):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setMinimumWidth(140)
 
         inner = QWidget()
         layout = QVBoxLayout(inner)
@@ -730,6 +731,7 @@ class GestureManagePanel(QWidget):
         for i, (display, name) in enumerate(preset_names):
             btn = QPushButton(display)
             btn.setFixedHeight(32)
+            btn.setMinimumWidth(72)
             btn.clicked.connect(
                 lambda checked=False, n=name, d=display: (
                     self.gesture_selected.emit(n, self._gm.resolve_gesture(n) or tuple([255] * 10))
@@ -754,6 +756,7 @@ class GestureManagePanel(QWidget):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setMinimumWidth(140)
 
         inner = QWidget()
         self._custom_layout = QVBoxLayout(inner)
@@ -763,6 +766,7 @@ class GestureManagePanel(QWidget):
         # 新建按钮
         new_btn = QPushButton("+ 新建手势")
         new_btn.setFixedHeight(32)
+        new_btn.setMinimumWidth(72)
         new_btn.clicked.connect(self.gesture_create_requested)
         self._custom_layout.addWidget(new_btn)
 
@@ -781,6 +785,7 @@ class GestureManagePanel(QWidget):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setMinimumWidth(140)
 
         inner = QWidget()
         self._sequence_layout = QVBoxLayout(inner)
@@ -790,6 +795,7 @@ class GestureManagePanel(QWidget):
         # 新建按钮
         new_seq_btn = QPushButton("+ 新建序列")
         new_seq_btn.setFixedHeight(32)
+        new_seq_btn.setMinimumWidth(72)
         new_seq_btn.clicked.connect(self.sequence_create_requested)
         self._sequence_layout.addWidget(new_seq_btn)
 
@@ -823,6 +829,7 @@ class GestureManagePanel(QWidget):
             data = custom_names[name]
             btn = QPushButton(name)
             btn.setFixedHeight(32)
+            btn.setMinimumWidth(72)
             btn.setToolTip(data.get("description", ""))
             btn.clicked.connect(
                 lambda checked=False, n=name: self._on_custom_gesture_clicked(n)
@@ -867,21 +874,27 @@ class GestureManagePanel(QWidget):
         row.addWidget(name_label, stretch=1)
 
         play_btn = QPushButton("▶")
-        play_btn.setFixedSize(32, 28)
+        play_btn.setFixedHeight(28)
+        play_btn.setMinimumWidth(36)
+        play_btn.setStyleSheet("padding: 4px 6px; text-align: center;")
         play_btn.clicked.connect(
             lambda checked=False, n=name: self.sequence_play_requested.emit(n)
         )
         row.addWidget(play_btn)
 
         edit_btn = QPushButton("编辑")
-        edit_btn.setFixedWidth(40)
+        edit_btn.setFixedHeight(28)
+        edit_btn.setMinimumWidth(64)
+        edit_btn.setStyleSheet("padding: 4px 10px;")
         edit_btn.clicked.connect(
             lambda checked=False, n=name: self._on_sequence_edit(n)
         )
         row.addWidget(edit_btn)
 
         del_btn = QPushButton("✕")
-        del_btn.setFixedSize(28, 28)
+        del_btn.setFixedHeight(28)
+        del_btn.setMinimumWidth(32)
+        del_btn.setStyleSheet("padding: 4px 6px;")
         del_btn.clicked.connect(
             lambda checked=False, n=name: self._on_sequence_delete(n)
         )
