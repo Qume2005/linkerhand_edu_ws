@@ -14,6 +14,7 @@ HandModelWidget.__init__ 被 patch 为轻量版，避免 MuJoCo 渲染 segfault�
 
 import os
 import sys
+import time
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -30,14 +31,26 @@ for mod_name in [
 ]:
     sys.modules.setdefault(mod_name, MagicMock())
 
-# linker_hand_description 提供 gesture_presets（共享手势配置），
-# 只 mock 路径辅助函数，保留 gesture_presets 可用。
-if 'linker_hand_description' not in sys.modules:
-    import linker_hand_description as _lhd
-    _lhd.get_urdf_path = MagicMock(return_value="/fake/path/model.xml")
-    _lhd.get_urdf_dir = MagicMock(return_value="/fake/path")
-    _lhd.get_model_path = MagicMock(return_value="/fake/path/model.urdf")
-    _lhd.get_model_dir = MagicMock(return_value="/fake/path")
+# linker_hand_description 提供 gesture_presets（共享手势配置）。
+# 由于该包可能未安装，用 MagicMock 替代并注入真实手势预设数据。
+_GESTURE_PRESETS_REAL = {
+    "open": tuple([255] * 10),
+    "fist": tuple([0] * 10),
+    "ok": tuple([0, 255, 255, 0, 0, 0, 255, 255, 255, 255]),
+    "pinch": tuple([200, 255, 255, 0, 0, 0, 255, 255, 255, 255]),
+    "point": tuple([255, 255, 0, 0, 0, 0, 255, 255, 255, 255]),
+    "peace": tuple([255, 255, 0, 0, 0, 0, 255, 255, 255, 0]),
+    "thumbs_up": tuple([255, 0, 0, 0, 0, 0, 255, 255, 255, 255]),
+}
+_mock_lhd = MagicMock()
+_mock_lhd.gesture_presets = MagicMock()
+_mock_lhd.gesture_presets.GESTURE_PRESETS = _GESTURE_PRESETS_REAL
+_mock_lhd.get_urdf_path = MagicMock(return_value="/fake/path/model.xml")
+_mock_lhd.get_urdf_dir = MagicMock(return_value="/fake/path")
+_mock_lhd.get_model_path = MagicMock(return_value="/fake/path/model.urdf")
+_mock_lhd.get_model_dir = MagicMock(return_value="/fake/path")
+sys.modules.setdefault('linker_hand_description', _mock_lhd)
+sys.modules.setdefault('linker_hand_description.gesture_presets', _mock_lhd.gesture_presets)
 
 from PySide2.QtWidgets import QApplication, QWidget
 from PySide2.QtCore import Qt, QTimer
@@ -313,8 +326,9 @@ class TestControlPanelWindowInit(unittest.TestCase):
         self.assertEqual(self.window.windowTitle(), "L10 Hand Control Panel")
 
     def test_window_size(self):
+        """窗口最小尺寸为 1100×650，高度可动态调整。"""
         self.assertEqual(self.window.width(), 1100)
-        self.assertEqual(self.window.height(), 680)
+        self.assertGreaterEqual(self.window.height(), 650)
 
     def test_10_sliders_created(self):
         self.assertEqual(len(self.window.sliders), 10)
@@ -383,10 +397,10 @@ class TestControlPanelButtons(unittest.TestCase):
                             f"按钮 '{btn.text()}' 不可用")
 
     def test_preset_label_exists(self):
+        """预设手势按钮已迁移到手势管理面板中。"""
         from PySide2.QtWidgets import QLabel
-        labels = self.window.findChildren(QLabel)
-        texts = [l.text() for l in labels]
-        self.assertIn("预设手势:", texts)
+        # 旧版 "预设手势:" 标签已移除，预设按钮统一到 GestureManagePanel
+        self.assertIsNotNone(self.window._gesture_panel)
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -542,6 +556,158 @@ class TestControlPanelSyncing(unittest.TestCase):
         self.window._syncing = False
         self.window._on_slider()
         self.mock_ros.publish_dof.assert_called()
+
+
+# ══════════════════════════════════════════════════════════════════════
+# 8. 手势/序列功能集成测试
+# ══════════════════════════════════════════════════════════════════════
+
+
+class TestGestureSequenceIntegration(unittest.TestCase):
+    """手势管理器、手势面板、序列播放与控制面板集成测试。"""
+
+    def setUp(self):
+        self.window = _create_window()
+        self.mock_ros = MagicMock()
+        self.window.set_ros_node(self.mock_ros)
+
+    def test_gesture_manager_initialized(self):
+        """窗口初始化后 _gesture_manager 已加载。"""
+        self.assertIsNotNone(self.window._gesture_manager)
+        # 加载后至少能看到内置手势
+        names = self.window._gesture_manager.get_all_gesture_names()
+        self.assertIn("open", names)
+        self.assertIn("fist", names)
+
+    def test_gesture_panel_exists(self):
+        """_gesture_panel 已创建并添加到布局。"""
+        self.assertIsNotNone(self.window._gesture_panel)
+        # 确认是 GestureManagePanel 类型
+        from l10_hand_control_panel.gesture_dialogs import GestureManagePanel
+        self.assertIsInstance(self.window._gesture_panel, GestureManagePanel)
+
+    def test_gesture_selection_publishes_dof(self):
+        """手势选择信号 → _on_gesture_selected → _set_all → ROS publish。"""
+        self.window._syncing = False
+        # 模拟手势选择信号（选择 "open" 手势）
+        open_dofs = tuple([255] * 10)
+        self.window._gesture_panel.gesture_selected.emit("open", open_dofs)
+        # 验证 ROS 发布被调用
+        self.mock_ros.publish_dof.assert_called()
+        call_args = self.mock_ros.publish_dof.call_args[0][0]
+        self.assertEqual(len(call_args), 10)
+        self.assertTrue(all(v == 255 for v in call_args))
+
+    def test_gesture_selection_updates_sliders(self):
+        """手势选择后滑块目标值更新。"""
+        self.window._syncing = False
+        fist_dofs = tuple([0] * 10)
+        self.window._gesture_panel.gesture_selected.emit("fist", fist_dofs)
+        for slider in self.window.sliders:
+            self.assertEqual(slider.get_target_int(), 0)
+
+    def test_sequence_playback_starts_timer(self):
+        """_start_sequence_playback 启动 QTimer 并应用第一步 DOF。"""
+        # 先创建序列（注入到管理器）
+        self.window._gesture_manager.create_sequence(
+            "test_seq",
+            [
+                {"gesture_name": "open", "duration": 1.0, "delay_after": 0.0},
+                {"gesture_name": "fist", "duration": 1.0, "delay_after": 0.0},
+            ],
+            loop=False,
+        )
+        # 初始不播放
+        self.assertFalse(getattr(self.window, "_sequence_playing", False))
+        # 启动播放
+        result = self.window._start_sequence_playback("test_seq")
+        self.assertTrue(result)
+        self.assertTrue(self.window._sequence_playing)
+        # 验证计时器已启动
+        self.assertIsNotNone(self.window._sequence_timer)
+        self.assertTrue(self.window._sequence_timer.isActive())
+        # 验证第一步已应用（所有 DOF = 255）
+        for slider in self.window.sliders:
+            self.assertEqual(slider.get_target_int(), 255)
+
+    def test_sequence_playback_invalid_sequence_returns_false(self):
+        """不存在的序列名返回 False，不启动播放。"""
+        result = self.window._start_sequence_playback("nonexistent_seq")
+        self.assertFalse(result)
+        self.assertFalse(getattr(self.window, "_sequence_playing", False))
+
+    def test_sequence_stop_cleans_up(self):
+        """_stop_sequence_playback 停止计时器并清理状态。"""
+        # 创建并启动序列
+        self.window._gesture_manager.create_sequence(
+            "test_seq",
+            [{"gesture_name": "open", "duration": 1.0, "delay_after": 0.0}],
+            loop=False,
+        )
+        self.window._start_sequence_playback("test_seq")
+        self.assertTrue(self.window._sequence_playing)
+        # 停止
+        self.window._stop_sequence_playback()
+        self.assertFalse(self.window._sequence_playing)
+        self.assertIsNone(self.window._sequence_timer)
+        self.assertIsNone(self.window._sequence_data)
+
+    def test_sequence_playback_applies_step_change(self):
+        """序列 tick 推进到下一步时 DOF 值更新。"""
+        self.window._gesture_manager.create_sequence(
+            "test_seq",
+            [
+                {"gesture_name": "open", "duration": 0.5, "delay_after": 0.0},
+                {"gesture_name": "fist", "duration": 0.5, "delay_after": 0.0},
+            ],
+            loop=False,
+        )
+        self.window._start_sequence_playback("test_seq")
+        # 第一步是 open (all 255)
+        self.assertEqual(self.window.sliders[0].get_target_int(), 255)
+        # 模拟时间推进到第一步结束
+        data = self.window._sequence_data
+        data["phase_start"] = time.time() - 1.0  # 让 elapsed > duration
+        self.window._sequence_tick()
+        # 第二步是 fist (真实值: 122, 145, 0, 0, 0, 0, 0, 0, 0, 92)
+        self.assertEqual(self.window.sliders[0].get_target_int(), 122)
+        self.assertEqual(self.window.sliders[1].get_target_int(), 145)
+
+    def test_gesture_create_requested_signal(self):
+        """gesture_create_requested 信号可被发射（不触发对话框）。"""
+        received = []
+        # 暂时阻止 _open_gesture_editor 打开对话框
+        with patch.object(self.window, '_open_gesture_editor'):
+            self.window._gesture_panel.gesture_create_requested.connect(
+                lambda: received.append(True)
+            )
+            self.window._gesture_panel.gesture_create_requested.emit()
+        self.assertEqual(len(received), 1)
+
+    def test_sequence_create_requested_signal(self):
+        """sequence_create_requested 信号可被发射（不触发对话框）。"""
+        received = []
+        # 暂时阻止 _open_sequence_editor 打开对话框
+        with patch.object(self.window, '_open_sequence_editor'):
+            self.window._gesture_panel.sequence_create_requested.connect(
+                lambda: received.append(True)
+            )
+            self.window._gesture_panel.sequence_create_requested.emit()
+        self.assertEqual(len(received), 1)
+
+    def test_gesture_panel_preset_tab_buttons(self):
+        """预设标签页有 7 个预设手势按钮。"""
+        from PySide2.QtWidgets import QPushButton, QTabWidget
+        # 切换到预设标签页
+        tab_widget = self.window._gesture_panel.findChild(QTabWidget)
+        if tab_widget is not None:
+            tab_widget.setCurrentIndex(0)
+        buttons = self.window._gesture_panel.findChildren(QPushButton)
+        preset_names = ["张开", "握拳", "OK", "捏取", "指向", "比耶", "竖大拇指"]
+        found_texts = [b.text() for b in buttons]
+        for name in preset_names:
+            self.assertIn(name, found_texts,
+                          f"预设按钮 '{name}' 未在 GestureManagePanel 中找到")
 
 
 if __name__ == '__main__':

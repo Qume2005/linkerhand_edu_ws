@@ -11,6 +11,7 @@ L10 手部控制面板 - PySide2 双指示器滑块
 import sys
 import threading
 import math
+import time
 import json
 
 import rclpy
@@ -18,7 +19,7 @@ from rclpy.node import Node
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Float32, Float32MultiArray, String
 
-from PySide2.QtCore import Qt, Signal, QRectF, QPointF
+from PySide2.QtCore import Qt, Signal, QRectF, QPointF, QTimer
 from PySide2.QtGui import QPainter, QPen, QBrush, QColor, QPolygonF, QFont
 from PySide2.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
@@ -26,6 +27,13 @@ from PySide2.QtWidgets import (
 )
 
 from l10_hand_control_panel.skeleton_widget import HandModelWidget
+from l10_hand_control_panel.gesture_manager import GestureManager
+from l10_hand_control_panel.gesture_dialogs import (
+    GestureEditorDialog,
+    SequenceEditorDialog,
+    GestureManagePanel,
+    SequencePlayerOverlay,
+)
 
 
 # 10 个自由度定义 (0-255 范围)
@@ -674,12 +682,19 @@ class ControlPanelWindow(QWidget):
                 color: white;
             }}
         """)
-        self.setFixedSize(1100, 680)
+        self.setMinimumSize(1100, 650)
 
         self.ros_node = None
         self.sliders = []
         self.val_labels = []
         self._syncing = False
+
+        # 手势与序列管理
+        self._gesture_manager = GestureManager()
+        self._gesture_manager.load()
+        self._sequence_playing = False
+        self._sequence_data: dict[str, Any] | None = None
+        self._sequence_timer: QTimer | None = None
 
         self._build_ui()
 
@@ -779,19 +794,16 @@ class ControlPanelWindow(QWidget):
             btn_row.addWidget(b)
         left.addLayout(btn_row)
 
-        # 预设手势
-        preset_row = QHBoxLayout()
-        preset_row.setSpacing(6)
-        plbl = QLabel("预设手势:")
-        plbl.setStyleSheet(f"color: {COLOR_TEXT_DIM};")
-        preset_row.addWidget(plbl)
-        for text, fn in [("张开", self.open_hand), ("握拳", self.close_hand), ("OK", self.preset_ok), ("捏取", self.preset_pinch), ("指向", self.preset_point)]:
-            b = QPushButton(text)
-            b.setFixedWidth(60)
-            b.clicked.connect(fn)
-            preset_row.addWidget(b)
-        preset_row.addStretch()
-        left.addLayout(preset_row)
+        # ── 手势管理面板 (含预设/自定义/序列三个标签页) ──
+        self._gesture_panel = GestureManagePanel(self._gesture_manager, self)
+        self._gesture_panel.gesture_selected.connect(self._on_gesture_selected)
+        self._gesture_panel.sequence_play_requested.connect(self._on_sequence_play)
+        self._gesture_panel.sequence_stop_requested.connect(self._on_sequence_stop)
+        self._gesture_panel.gesture_create_requested.connect(self._open_gesture_editor)
+        self._gesture_panel.sequence_create_requested.connect(self._open_sequence_editor)
+        self._gesture_panel.gesture_edit_requested.connect(self._open_gesture_editor)
+        self._gesture_panel.sequence_edit_requested.connect(self._open_sequence_editor)
+        left.addWidget(self._gesture_panel)
 
         left.addStretch()
         outer.addLayout(left)
@@ -994,8 +1006,184 @@ class ControlPanelWindow(QWidget):
         from linker_hand_description.gesture_presets import GESTURE_PRESETS
         self._set_all(list(GESTURE_PRESETS["point"]))
 
+    # ── 手势管理信号槽 ──────────────────────────────────────────────
 
-def main(args=None):
+    def _on_gesture_selected(self, name: str, dof_values: tuple) -> None:
+        """用户选择了手势（预设或自定义）→ 设置所有滑块并发布。"""
+        self._set_all(list(dof_values))
+
+    def _open_gesture_editor(self, gesture_name: str | None = None) -> None:
+        """打开手势编辑器对话框（创建或编辑）。"""
+        current_dofs = [s.get_target_int() for s in self.sliders]
+
+        dialog = GestureEditorDialog(
+            self._gesture_manager,
+            gesture_name=gesture_name,
+            current_dofs=current_dofs,
+            parent=self,
+        )
+        dialog.dialog_accepted.connect(self._on_gesture_editor_accepted)
+        dialog.exec_()
+
+    def _on_gesture_editor_accepted(self, name: str, dof_values: list) -> None:
+        """手势编辑器保存回调。"""
+        try:
+            if self._gesture_manager.get_custom_gesture(name):
+                self._gesture_manager.update_custom_gesture(name, dof_values)
+            else:
+                self._gesture_manager.create_custom_gesture(name, dof_values)
+        except (ValueError, KeyError) as exc:
+            from PySide2.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "保存失败", str(exc))
+
+    def _open_sequence_editor(self, sequence_name: str | None = None) -> None:
+        """打开序列编辑器对话框（创建或编辑）。"""
+        dialog = SequenceEditorDialog(
+            self._gesture_manager,
+            sequence_name=sequence_name,
+            parent=self,
+        )
+        dialog.dialog_accepted.connect(self._on_sequence_editor_accepted)
+        dialog.exec_()
+
+    def _on_sequence_editor_accepted(
+        self, name: str, steps: list, loop: bool
+    ) -> None:
+        """序列编辑器保存回调。"""
+        try:
+            if self._gesture_manager.get_sequence(name):
+                self._gesture_manager.update_sequence(name, steps, loop)
+            else:
+                self._gesture_manager.create_sequence(name, steps, loop)
+        except (ValueError, KeyError) as exc:
+            from PySide2.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "保存失败", str(exc))
+
+    # ── 序列播放控制 ────────────────────────────────────────────────
+
+    def _on_sequence_play(self, name: str) -> None:
+        """用户点击播放序列。"""
+        if self._start_sequence_playback(name):
+            self._gesture_panel.set_sequences_enabled(False)
+
+    def _on_sequence_stop(self) -> None:
+        """用户点击停止序列。"""
+        self._stop_sequence_playback()
+
+    def _start_sequence_playback(self, sequence_name: str) -> bool:
+        """启动序列播放。
+
+        Returns:
+            True 如果成功启动，False 如果序列不存在或无效。
+        """
+        seq = self._gesture_manager.get_sequence(sequence_name)
+        if not seq:
+            return False
+
+        steps = seq.get("steps", [])
+        if not steps:
+            return False
+
+        # 验证所有步骤引用有效
+        for step in steps:
+            if self._gesture_manager.resolve_gesture(
+                step.get("gesture_name", "")
+            ) is None:
+                return False
+
+        # 停止已有播放
+        self._stop_sequence_playback()
+
+        self._sequence_data = {
+            "name": sequence_name,
+            "steps": [dict(s) for s in steps],
+            "loop": seq.get("loop", False),
+            "current_step": 0,
+            "phase": "duration",
+            "phase_start": time.time(),
+        }
+        self._sequence_playing = True
+
+        # 应用第一步
+        self._apply_sequence_step(0)
+
+        # 启动计时器 (30Hz)
+        self._sequence_timer = QTimer(self)
+        self._sequence_timer.timeout.connect(self._sequence_tick)
+        self._sequence_timer.start(33)
+
+        return True
+
+    def _stop_sequence_playback(self) -> None:
+        """停止当前序列播放。"""
+        if self._sequence_timer is not None:
+            self._sequence_timer.stop()
+            self._sequence_timer = None
+        self._sequence_playing = False
+        self._sequence_data = None
+
+    def _sequence_tick(self) -> None:
+        """QTimer 回调 — 推进序列状态机。"""
+        if not self._sequence_playing or not self._sequence_data:
+            return
+
+        data = self._sequence_data
+        now = time.time()
+        elapsed = now - data["phase_start"]
+        step = data["steps"][data["current_step"]]
+
+        if data["phase"] == "duration":
+            duration = step.get("duration", 1.0)
+            if elapsed >= duration:
+                delay = step.get("delay_after", 0.0)
+                if delay > 0:
+                    data["phase"] = "delay"
+                    data["phase_start"] = now
+                else:
+                    self._advance_sequence_step()
+        elif data["phase"] == "delay":
+            delay = step.get("delay_after", 0.0)
+            if elapsed >= delay:
+                self._advance_sequence_step()
+
+    def _advance_sequence_step(self) -> None:
+        """推进到序列的下一步。"""
+        data = self._sequence_data
+        if not data:
+            return
+
+        data["current_step"] += 1
+
+        if data["current_step"] >= len(data["steps"]):
+            if data.get("loop", False):
+                data["current_step"] = 0
+                self._apply_sequence_step(0)
+                data["phase"] = "duration"
+                data["phase_start"] = time.time()
+            else:
+                self._stop_sequence_playback()
+                self._gesture_panel.set_sequences_enabled(True)
+            return
+
+        self._apply_sequence_step(data["current_step"])
+        data["phase"] = "duration"
+        data["phase_start"] = time.time()
+
+    def _apply_sequence_step(self, step_index: int) -> None:
+        """应用序列中指定步骤的 DOF 值。"""
+        data = self._sequence_data
+        if not data or step_index >= len(data["steps"]):
+            return
+
+        step = data["steps"][step_index]
+        gesture_name = step.get("gesture_name", "")
+        dof_values = self._gesture_manager.resolve_gesture(gesture_name)
+        if dof_values:
+            self._set_all(list(dof_values))
+
+
+def main() -> None:
+    """应用程序入口。"""
     import signal
     rclpy.init()
 

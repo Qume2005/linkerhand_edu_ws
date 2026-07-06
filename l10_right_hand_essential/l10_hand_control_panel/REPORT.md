@@ -294,6 +294,222 @@ Jacobian 值用 `delta_screen / actual_eps` 计算，`actual_eps` 可正可负�
 | 文件 | 说明 |
 |------|------|
 | `l10_hand_control_panel/skeleton_widget.py` | 3D 交互控件核心 (~500 行) |
-| `l10_hand_control_panel/control_panel.py` | 主窗口，双面板布局 |
+| `l10_hand_control_panel/control_panel.py` | 主窗口，双面板布局 + 序列播放控制 |
+| `l10_hand_control_panel/gesture_manager.py` | 自定义手势/序列数据层 (~350 行) |
+| `l10_hand_control_panel/gesture_dialogs.py` | 手势/序列 UI 对话框 (~1200 行) |
+| `l10_hand_control_panel/gesture_presets.py` | 7 个内置手势预设 (只读) |
 | `l10_hand_control_panel/urdf/linker_hand_l10_right/` | MuJoCo XML + 26 STL 网格 |
 | `hand_forward_kinematics/kinematics.py` | FK 引擎 |
+
+---
+
+## 10. 自定义手势与序列管理系统
+
+### 10.1 架构概览
+
+新增两个模块保持关注点分离：
+
+```
+l10_hand_control_panel/
+├── gesture_manager.py       # 纯 Python 数据层 (无 Qt 依赖)
+│   └── GestureManager        #   JSON 持久化 + CRUD + 验证 + 事件通知
+│
+├── gesture_dialogs.py        # Qt UI 层
+│   ├── GestureEditorDialog   #   创建/编辑单个手势 (10 个 DOF 滑块)
+│   ├── SequenceEditorDialog  #   创建/编辑序列 (步骤列表 + 排序)
+│   ├── GestureManagePanel    #   主窗口嵌入面板 (3 标签页: 预设/自定义/序列)
+│   └── SequencePlayerOverlay #   播放进度覆盖层 (进度条 + 暂停/停止)
+│
+└── control_panel.py          # 集成层
+    └── ControlPanelWindow    #   _gesture_manager + _gesture_panel + _sequence_timer
+```
+
+### 10.2 数据层：GestureManager
+
+`gesture_manager.py` 是纯 Python 模块（无 Qt 依赖），负责所有数据持久化和业务逻辑。
+
+**核心职责:**
+- JSON 读写（原子写入：tmp → os.replace）
+- 自定义手势 CRUD
+- 手势序列 CRUD
+- 手势名解析（内置优先 → 自定义 fallback）
+- 输入验证（名称冲突、DOF 范围、步骤有效性）
+- 变更事件通知（回调机制）
+
+**配置路径**: `~/.config/l10_hand_control_panel/gestures.json`
+
+**JSON Schema:**
+
+```jsonc
+{
+  "version": "1.0",
+  "custom_gestures": {
+    "手势名": {
+      "dof_values": [0-255 的 10 个整数],
+      "description": "可选描述",
+      "created_at": "ISO8601",
+      "updated_at": "ISO8601"
+    }
+  },
+  "sequences": {
+    "序列名": {
+      "steps": [
+        {"gesture_name": "手势名", "duration": 1.5, "delay_after": 0.0}
+      ],
+      "loop": false,
+      "created_at": "...",
+      "updated_at": "..."
+    }
+  }
+}
+```
+
+**关键方法:**
+
+| 方法 | 说明 |
+|------|------|
+| `load()` / `save()` | 原子读写 JSON |
+| `create_custom_gesture(name, dof_values, desc)` | 创建自定义手势 |
+| `update_custom_gesture(name, dof_values, desc)` | 更新已有手势 |
+| `delete_custom_gesture(name)` | 删除自定义手势（内置不可删） |
+| `resolve_gesture(name)` | 解析手势名 → DOF tuple（内置优先） |
+| `create_sequence(name, steps, loop)` | 创建序列 |
+| `get_invalid_sequence_steps(name)` | 返回引用断裂的步骤索引 |
+| `on_changed(callback)` | 注册变更回调 |
+
+### 10.3 UI 层
+
+#### GestureEditorDialog
+
+创建/编辑手势的模态对话框：
+
+```
+┌──────────────────────────────────────────────┐
+│  新建手势                                      │
+│  名称: [________]  描述: [________]             │
+│                                               │
+│  DOF 滑块 (复用 DualSlider):                   │
+│  DOF0 - 拇指弯曲  ◇──────◆────  200            │
+│  ... (10 行)                                  │
+│                                               │
+│  [从当前滑块导入]  [重置为张开]                  │
+│                                               │
+│              [取消]  [保存]                      │
+└──────────────────────────────────────────────┘
+```
+
+- 复用 `DualSlider` 控件，每个滑块旁显示整数值
+- 验证：名称非空、不与内置/自定义重名、DOF 值在 0-255 范围
+- `dialog_accepted(name, dof_values)` 信号
+
+#### SequenceEditorDialog
+
+创建/编辑序列的模态对话框：
+
+```
+┌──────────────────────────────────────────────┐
+│  新建序列                                      │
+│  名称: [________]  [✓ 循环播放]                 │
+│                                               │
+│  步骤列表:                                     │
+│  1. 挥手  1.5s → delay 0.3s  [↑][↓][✕]       │
+│  2. 握拳  0.5s → delay 0.0s  [↑][↓][✕]       │
+│                                               │
+│  手势: [挥手 ▼]  持续: [1.5]s  延迟: [0.3]s    │
+│  [添加步骤]                                    │
+│                                               │
+│              [取消]  [保存]                      │
+└──────────────────────────────────────────────┘
+```
+
+- 步骤列表用 `QListWidget` + 自定义 item widget
+- 手势下拉框从 `gesture_manager.get_all_gesture_names()` 动态填充
+- 验证：至少 1 步、所有手势名可解析、duration > 0、delay >= 0
+- 打开已有序列时调用 `get_invalid_sequence_steps()` 标记断裂引用
+
+#### GestureManagePanel
+
+主窗口左侧嵌入的三标签页面板：
+
+| 标签 | 内容 |
+|------|------|
+| **预设** | 7 个内置手势按钮（张开、握拳、OK、捏取、指向、比耶、竖大拇指），点击发射 `gesture_selected(name, dof_values)` |
+| **自定义** | 滚动区域 + "新建手势" 按钮；每个手势按钮右键菜单（编辑/删除） |
+| **序列** | 滚动区域 + "新建序列" 按钮；每项显示 [名称] [▶ 播放] [✕ 删除] |
+
+**信号:**
+- `gesture_selected(str, tuple)` → 主窗口调用 `_set_all()`
+- `sequence_play_requested(str)` → 启动序列播放
+- `sequence_stop_requested()` → 停止播放
+- `gesture_create_requested()` → 打开 GestureEditorDialog
+- `sequence_create_requested()` → 打开 SequenceEditorDialog
+
+### 10.4 序列播放算法
+
+序列播放在 `ControlPanelWindow` 中通过 QTimer (30Hz) 驱动的状态机实现。
+
+**状态机:**
+
+```
+data = {
+    name: str,
+    steps: list[dict],
+    loop: bool,
+    current_step: int,
+    phase: "duration" | "delay",
+    phase_start: float,  # time.time() 时间戳
+}
+
+_sequence_tick() [30Hz]:
+    elapsed = time.time() - data["phase_start"]
+    step = data["steps"][data["current_step"]]
+
+    if phase == "duration":
+        if elapsed >= step["duration"]:
+            if step["delay_after"] > 0:
+                phase = "delay"
+                phase_start = now
+            else:
+                _advance_sequence_step()
+
+    elif phase == "delay":
+        if elapsed >= step["delay_after"]:
+            _advance_sequence_step()
+
+_advance_sequence_step():
+    current_step++
+    if current_step >= len(steps):
+        if loop:  # 循环 → 回到第一步
+            current_step = 0
+            _apply_sequence_step(0)
+        else:     # 非循环 → 停止
+            _stop_sequence_playback()
+    else:
+        _apply_sequence_step(current_step)
+```
+
+**线程安全:** 播放在 Qt 主线程运行，`_set_all()` 内部 `_syncing=True` 阻止外部 `_apply_target_state()` 重入。播放期间序列按钮自动禁用。
+
+### 10.5 圆形导入解决
+
+`gesture_dialogs.py` 需要 `DualSlider`（定义在 `control_panel.py`），而 `control_panel.py` 需要 `GestureManagePanel`（定义在 `gesture_dialogs.py`）。
+
+**解决方案:**
+- `gesture_dialogs.py` 在 `_build_ui()` 内部执行延迟导入：`from l10_hand_control_panel.control_panel import DualSlider`
+- `gesture_dialogs.py` 定义本地常量（DOF 定义、颜色值），避免从 `control_panel.py` 导入
+
+### 10.6 测试覆盖
+
+| 测试文件 | 项数 | 说明 |
+|----------|------|------|
+| `test_gesture_manager.py` | 61 | 数据层 CRUD、验证、回调、原子写入 |
+| `test_gesture_dialogs.py` | 50 | 4 个 UI 类（编辑器/面板/播放器） |
+| `test_control_panel_ui.py` (扩展) | 11 | 集成：手势选择→DOF 发布、序列播放 |
+| **总计** | **202** | |
+
+**关键测试模式:**
+- 时间相关测试使用 `patch("time.time")` 而非 `time.sleep()` 保证确定性
+- QMessageBox 使用 `patch.object(QMessageBox, "warning")` 避免阻塞
+- 信号测试使用 `patch.object(window, '_open_gesture_editor')` 阻止对话框弹出
+
+---

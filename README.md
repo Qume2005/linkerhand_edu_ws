@@ -1,6 +1,6 @@
 # LinkerHand L10 灵巧手教育版工作空间
 
-ROS 2 Jazzy 工作空间，用于控制 LinkerHand L10 10 自由度灵巧手（右手）。支持 MuJoCo 物理仿真、CAN 总线真机控制、RViz2 可视化、摄像头手部追踪、以及 LLM 自然语言手势控制。
+ROS 2 Jazzy 工作空间，用于控制 LinkerHand L10 10 自由度灵巧手（右手）。支持 MuJoCo 物理仿真、CAN 总线真机控制、RViz2 可视化、摄像头手部追踪、LLM 自然语言手势控制，以及自定义手势管理和手势序列自动播放。
 
 ## 系统架构
 
@@ -9,6 +9,8 @@ ROS 2 Jazzy 工作空间，用于控制 LinkerHand L10 10 自由度灵巧手（�
 ┌──────────────────────┐  ┌──────────────────────┐  ┌──────────────────────┐
 │ 控制面板 (GUI)        │  │ LLM 对话控制          │  │ 手部追踪 (摄像头)     │
 │ PySide2 双色滑块      │  │ 自然语言 → 手势        │  │ MediaPipe → DOF       │
+│ 自定义手势 CRUD       │  │                      │  │                      │
+│ 手势序列 CRUD + 播放  │  │                      │  │                      │
 └──────────┬───────────┘  └──────────┬───────────┘  └──────────┬───────────┘
            │                         │                          │
            └─────────────────────────┼──────────────────────────┘
@@ -178,7 +180,7 @@ linkerhand_edu_ws/
 │   ├── l10_right_hand_mujoco_sim/#   MuJoCo 仿真后端
 │   ├── l10_right_hand_driver/    #   CAN 总线真机驱动
 │   ├── l10_hand_gateway/         #   命令反向代理 + FK/IK 网关
-│   ├── l10_hand_control_panel/   #   PySide2 GUI 控制面板
+│   ├── l10_hand_control_panel/   #   PySide2 GUI 控制面板（手势管理 + 序列播放）
 │   ├── l10_right_hand_viz/       #   RViz2 可视化
 │   └── l10_right_hand_bootstrap/ #   分时启动 launch 文件
 ├── l10_right_hand_examples/      # 应用示例（3 个，可选）
@@ -244,4 +246,5 @@ CAN ID（右手）: `0x27`。默认 CAN 端口: `can0`。
 
 - [核心包文档](l10_right_hand_essential/README.md) — 8 个核心包的功能介绍、依赖关系、使用场景
 - [应用示例文档](l10_right_hand_examples/README.md) — LLM 控制、手部追踪和石头剪刀布游戏的使用方法
+- [控制面板文档](l10_right_hand_essential/l10_hand_control_panel/README.md) — 自定义手势与序列管理使用指南
 - 各软件包内部的 `README.md` — 技术细节、算法原理、踩坑记录
