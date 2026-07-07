@@ -274,10 +274,12 @@ l10_hand_control_panel/
     ├── gesture_dialogs.py           # 手势编辑器/序列编辑器/手势管理面板/播放覆盖层
     ├── skeleton_widget.py           # 3D 骨架控件 — MuJoCo 离屏渲染 + 指尖拖拽 IK
     └── tests/
-        ├── test_control_panel_ui.py     # 主窗口 + 手势/序列集成测试 (62 项)
+        ├── _shared_mocks.py         # 共享 mock 数据 (消除跨文件污染)
+        ├── test_control_panel_ui.py     # 主窗口 + 手势/序列集成测试 (73 项)
         ├── test_gesture_manager.py      # 数据层单元测试 (61 项)
         ├── test_gesture_dialogs.py      # 对话框/面板测试 (50 项)
-        └── test_sequence_player.py      # 序列播放器测试 (10 项)
+        ├── test_skeleton_widget.py      # 投影/geom_id/resize 专项测试 (18 项)
+        └── test_skeleton_widget_math.py # 投影数学 + 相机回声防护测试 (14 项)
 ```
 
-> **测试覆盖**: 共 202 项自动化测试，覆盖数据层 CRUD、UI 对话框、信号交互、序列播放状态机和集成流程。
+> **测试覆盖**: 共 218 项自动化测试，覆盖数据层 CRUD、UI 对话框、信号交互、序列播放状态机、3D 投影计算和集成流程。

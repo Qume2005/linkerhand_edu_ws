@@ -33,24 +33,7 @@ for mod_name in [
 
 # linker_hand_description 提供 gesture_presets（共享手势配置）。
 # 由于该包可能未安装，用 MagicMock 替代并注入真实手势预设数据。
-_GESTURE_PRESETS_REAL = {
-    "open": tuple([255] * 10),
-    "fist": tuple([0] * 10),
-    "ok": tuple([0, 255, 255, 0, 0, 0, 255, 255, 255, 255]),
-    "pinch": tuple([200, 255, 255, 0, 0, 0, 255, 255, 255, 255]),
-    "point": tuple([255, 255, 0, 0, 0, 0, 255, 255, 255, 255]),
-    "peace": tuple([255, 255, 0, 0, 0, 0, 255, 255, 255, 0]),
-    "thumbs_up": tuple([255, 0, 0, 0, 0, 0, 255, 255, 255, 255]),
-}
-_mock_lhd = MagicMock()
-_mock_lhd.gesture_presets = MagicMock()
-_mock_lhd.gesture_presets.GESTURE_PRESETS = _GESTURE_PRESETS_REAL
-_mock_lhd.get_urdf_path = MagicMock(return_value="/fake/path/model.xml")
-_mock_lhd.get_urdf_dir = MagicMock(return_value="/fake/path")
-_mock_lhd.get_model_path = MagicMock(return_value="/fake/path/model.urdf")
-_mock_lhd.get_model_dir = MagicMock(return_value="/fake/path")
-sys.modules.setdefault('linker_hand_description', _mock_lhd)
-sys.modules.setdefault('linker_hand_description.gesture_presets', _mock_lhd.gesture_presets)
+from tests._shared_mocks import _GESTURE_PRESETS_REAL
 
 from PySide2.QtWidgets import QApplication, QWidget
 from PySide2.QtCore import Qt, QTimer
@@ -438,14 +421,12 @@ class TestControlPanelButtonActions(unittest.TestCase):
         self.assertFalse(self.window._syncing, f"{msg_prefix}_syncing not reset")
 
     def test_click_open_hand_full_chain(self):
-        from linker_hand_description.gesture_presets import GESTURE_PRESETS
         self.window.open_hand()
-        self._verify_full_chain(list(GESTURE_PRESETS["open"]), "open_hand: ")
+        self._verify_full_chain(list(_GESTURE_PRESETS_REAL["open"]), "open_hand: ")
 
     def test_click_close_hand_full_chain(self):
-        from linker_hand_description.gesture_presets import GESTURE_PRESETS
         self.window.close_hand()
-        self._verify_full_chain(list(GESTURE_PRESETS["fist"]), "close_hand: ")
+        self._verify_full_chain(list(_GESTURE_PRESETS_REAL["fist"]), "close_hand: ")
 
     def test_click_reset_full_chain(self):
         self.window.close_hand()
@@ -454,49 +435,43 @@ class TestControlPanelButtonActions(unittest.TestCase):
         self._verify_full_chain(expected, "reset_hand: ")
 
     def test_click_preset_ok_full_chain(self):
-        from linker_hand_description.gesture_presets import GESTURE_PRESETS
-        expected = list(GESTURE_PRESETS["ok"])
+        expected = list(_GESTURE_PRESETS_REAL["ok"])
         self.window.preset_ok()
         self._verify_full_chain(expected, "preset_ok: ")
 
     def test_click_preset_pinch_full_chain(self):
-        from linker_hand_description.gesture_presets import GESTURE_PRESETS
-        expected = list(GESTURE_PRESETS["pinch"])
+        expected = list(_GESTURE_PRESETS_REAL["pinch"])
         self.window.preset_pinch()
         self._verify_full_chain(expected, "preset_pinch: ")
 
     def test_click_preset_point_full_chain(self):
-        from linker_hand_description.gesture_presets import GESTURE_PRESETS
-        expected = list(GESTURE_PRESETS["point"])
+        expected = list(_GESTURE_PRESETS_REAL["point"])
         self.window.preset_point()
         self._verify_full_chain(expected, "preset_point: ")
 
     def test_button_click_via_click_method(self):
         """通过 QPushButton.click() 模拟点击 "握拳" 按钮。"""
-        from linker_hand_description.gesture_presets import GESTURE_PRESETS
         from PySide2.QtWidgets import QPushButton
         buttons = self.window.findChildren(QPushButton)
         fist_btn = next(b for b in buttons if b.text() == "握拳")
         fist_btn.click()
-        self._verify_full_chain(list(GESTURE_PRESETS["fist"]), "btn.click(握拳): ")
+        self._verify_full_chain(list(_GESTURE_PRESETS_REAL["fist"]), "btn.click(握拳): ")
 
     def test_button_click_via_signal(self):
         """通过 QPushButton.clicked.emit() 触发 "OK" 按钮。"""
-        from linker_hand_description.gesture_presets import GESTURE_PRESETS
         from PySide2.QtWidgets import QPushButton
         buttons = self.window.findChildren(QPushButton)
         ok_btn = next(b for b in buttons if b.text() == "OK")
         ok_btn.clicked.emit()
-        expected = list(GESTURE_PRESETS["ok"])
+        expected = list(_GESTURE_PRESETS_REAL["ok"])
         self._verify_full_chain(expected, "btn.clicked(OK): ")
 
     def test_sequential_button_clicks(self):
         """连续点击多个按钮，最终状态为最后一次点击的值。"""
-        from linker_hand_description.gesture_presets import GESTURE_PRESETS
         self.window.open_hand()
         self.window.close_hand()
         self.window.preset_ok()
-        expected = list(GESTURE_PRESETS["ok"])
+        expected = list(_GESTURE_PRESETS_REAL["ok"])
         self._verify_full_chain(expected, "sequential: ")
 
     def test_no_ros_node_no_crash(self):
@@ -653,7 +628,7 @@ class TestGestureSequenceIntegration(unittest.TestCase):
         self.assertIsNone(self.window._sequence_data)
 
     def test_sequence_playback_applies_step_change(self):
-        """序列 tick 推进到下一步时 DOF 值更新。"""
+        """序列 tick 推进到下一步时 DOF 值确实切换为新手势的值。"""
         self.window._gesture_manager.create_sequence(
             "test_seq",
             [
@@ -663,15 +638,21 @@ class TestGestureSequenceIntegration(unittest.TestCase):
             loop=False,
         )
         self.window._start_sequence_playback("test_seq")
-        # 第一步是 open (all 255)
-        self.assertEqual(self.window.sliders[0].get_target_int(), 255)
-        # 模拟时间推进到第一步结束
+        # 第一步是 open — 验证值匹配 mock 预设
+        open_vals = _GESTURE_PRESETS_REAL["open"]
+        for slider in self.window.sliders:
+            self.assertEqual(slider.get_target_int(), 255)
+        # 模拟时间推进到第一步结束，进入第二步 (fist)
         data = self.window._sequence_data
-        data["phase_start"] = time.time() - 1.0  # 让 elapsed > duration
+        data["phase_start"] = time.time() - 1.0
         self.window._sequence_tick()
-        # 第二步是 fist (真实值: 122, 145, 0, 0, 0, 0, 0, 0, 0, 92)
-        self.assertEqual(self.window.sliders[0].get_target_int(), 122)
-        self.assertEqual(self.window.sliders[1].get_target_int(), 145)
+        # 第二步应切换为 fist — 验证值与 mock 预设一致，不写死具体数字
+        fist_vals = _GESTURE_PRESETS_REAL["fist"]
+        for i, slider in enumerate(self.window.sliders):
+            self.assertEqual(
+                slider.get_target_int(), fist_vals[i],
+                f"Step 2 DOF[{i}] should match mock fist preset"
+            )
 
     def test_gesture_create_requested_signal(self):
         """gesture_create_requested 信号可被发射（不触发对话框）。"""

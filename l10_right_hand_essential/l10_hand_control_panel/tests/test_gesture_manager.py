@@ -13,25 +13,14 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 # 内置手势真实数据（用于 mock GESTURE_PRESETS.get()）
-GESTURE_PRESETS_REAL: dict[str, tuple] = {
-    "open":      (255, 255, 255, 255, 255, 255, 255, 255, 255, 255),
-    "fist":      (122, 145,   0,   0,   0,   0,   0,   0,   0,  92),
-    "ok":        (108,  56, 118, 255, 255, 255, 255, 255, 255, 234),
-    "pinch":     (108,  56, 118,   0,   0,   0, 132,   0,   0, 234),
-    "point":     (116, 142, 255,   0,   0,   0,  49,  36,  81,  50),
-    "peace":     ( 96,  48, 255, 255,   0,   0, 255, 255, 255,  89),
-    "thumbs_up": (255, 255,   0,   0,   0,   0,   0,   0,   0, 255),
-}
+from tests._shared_mocks import _GESTURE_PRESETS_REAL as GESTURE_PRESETS_REAL
 
 # ── Mock 依赖（必须在 import gesture_manager 之前）───────────────
-# 强制覆盖（test_gesture_dialogs.py 可能已设置不同值）
 _mock_lhd = MagicMock()
+_mock_lhd.gesture_presets = MagicMock()
+_mock_lhd.gesture_presets.GESTURE_PRESETS = GESTURE_PRESETS_REAL
 sys.modules['linker_hand_description'] = _mock_lhd
-_mock_presets = MagicMock()
-# 让 GESTURE_PRESETS 成为一个真实 dict 的 mock
-# 这样 GESTURE_PRESETS.get("nonexist") 返回 None 而不是 MagicMock
-_mock_presets.GESTURE_PRESETS = GESTURE_PRESETS_REAL
-sys.modules['linker_hand_description.gesture_presets'] = _mock_presets
+sys.modules['linker_hand_description.gesture_presets'] = _mock_lhd.gesture_presets
 
 from l10_hand_control_panel.gesture_manager import GestureManager
 

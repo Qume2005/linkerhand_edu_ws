@@ -32,11 +32,11 @@ ControlPanelWindow
 
 | 控制点 | Geom ID | 对应网格 | DOF | 求解器 |
 |--------|---------|---------|-----|-------|
-| 拇指尖 | 5 | thumb_distal | 0(弯曲), 1(侧摆), 9(侧旋) | 网格采样 + Jacobian |
-| 食指尖 | 9 | index_distal | 2(弯曲), 6(侧摆) | 网格采样 + Jacobian |
-| 中指尖 | 12 | middle_distal | 3(弯曲) | 采样 + 黄金分割 |
-| 无名指尖 | 16 | ring_distal | 4(弯曲), 7(侧摆) | 网格采样 + Jacobian |
-| 小指尖 | 20 | pinky_distal | 5(弯曲), 8(侧摆) | 网格采样 + Jacobian |
+| 拇指尖 | 6 | thumb_distal | 0(弯曲), 1(侧摆), 9(侧旋) | 网格采样 + Jacobian |
+| 食指尖 | 10 | index_distal | 2(弯曲), 6(侧摆) | 网格采样 + Jacobian |
+| 中指尖 | 13 | middle_distal | 3(弯曲) | 采样 + 黄金分割 |
+| 无名指尖 | 17 | ring_distal | 4(弯曲), 7(侧摆) | 网格采样 + Jacobian |
+| 小指尖 | 21 | pinky_distal | 5(弯曲), 8(侧摆) | 网格采样 + Jacobian |
 
 > 中指没有侧摆 DOF，所以只有 1 个 DOF，用更高效的采样法。
 
@@ -156,12 +156,12 @@ up      = (-sin(e)*cos(a), -sin(e)*sin(a), cos(e))
 
 **坑：** MuJoCo 的 `data.xpos[body_id]` 是 body 的质心位置，`data.geom_xpos[geom_id]` 是 geom（网格）的位置。指尖 mesh 偏离 body 质心很多（手指末端的指尖 mesh 在 body 下方），所以必须用 `geom_xpos` 而非 `xpos`。
 
-验证方法：在 XML 中数 geom 出现顺序确定 geom_id：
-- geom 5 = thumb_distal（指尖网格，在 thumb_distal body 内）
-- geom 9 = index_distal（指尖网格）
-- geom 12 = middle_distal（指尖网格）
-- geom 16 = ring_distal（指尖网格）
-- geom 20 = pinky_distal（指尖网格）
+验证方法：在 XML 中数 geom 出现顺序确定 geom_id（含 floor 在内依次计数）：
+- geom 6 = thumb_distal（指尖网格，在 thumb_distal body 内）
+- geom 10 = index_distal（指尖网格）
+- geom 13 = middle_distal（指尖网格）
+- geom 17 = ring_distal（指尖网格）
+- geom 21 = pinky_distal（指尖网格）
 
 ### 4.3 DOF 反转映射
 
@@ -216,6 +216,79 @@ Jacobian 值用 `delta_screen / actual_eps` 计算，`actual_eps` 可正可负�
 ### 4.7 Grab Offset
 
 点击控制点时记录 `_drag_offset = cp_screen - mouse_pos`。拖拽过程中，IK 目标 = 鼠标位置 + offset。这样控制点不会跳到鼠标位置，而是以点击时的相对偏移跟随。
+
+### 4.8 3D → 2D 投影与 letterboxing 补偿
+
+**坑（已修复）：** `_project()` 最初将 3D 世界坐标直接缩放到整个 widget 面积：
+```python
+sx *= self.width() / self._render_w    # 假设渲染图填满 widget
+sy *= self.height() / self._render_h
+```
+
+但 `paintEvent()` 使用 `Qt.KeepAspectRatio` 缩放渲染图并居中绘制。当 widget 宽高比 ≠ 4:3 时，渲染图两侧/上下出现 letterboxing（黑边），实际绘制区域小于 widget 面积。`_project()` 的缩放基准与 `paintEvent` 不一致，导致：
+
+1. 控制点整体偏移（忽略了 letterboxing 偏移量）
+2. 非均匀缩放扭曲间距（`width/640 ≠ height/480` 时产生不等比拉伸）
+3. IK 求解基于错误的投影，手指 3D 运动方向偏离屏幕方向
+
+**修复：** 新增 `_get_image_rect()` 方法，复现 `paintEvent` 中 `KeepAspectRatio` + 居中的缩放计算：
+```python
+def _get_image_rect(self):
+    """返回渲染图在 widget 中的实际绘制矩形 (与 paintEvent 一致)。"""
+    widget_aspect = w / h
+    render_aspect = 640 / 480  # 4:3
+    if widget_aspect > render_aspect:
+        scaled_h = h; scaled_w = int(h * render_aspect)
+    else:
+        scaled_w = w; scaled_h = int(w / render_aspect)
+    x = (w - scaled_w) / 2; y = (h - scaled_h) / 2
+    return QRectF(x, y, scaled_w, scaled_h)
+```
+
+`_project()` 最后用该矩形做缩放+偏移补偿：
+```python
+rect = self._get_image_rect()
+sx = rect.left() + sx * (rect.width() / self._render_w)
+sy = rect.top()  + sy * (rect.height() / self._render_h)
+```
+
+现在 `_project()` 和 `paintEvent` 使用完全相同的缩放/居中计算，控制点始终精确对齐渲染图中的指尖位置。
+
+### 4.9 resizeEvent 立即刷新控制点缓存
+
+**坑（已修复）：** `_cp_screen` 控制点屏幕坐标缓存仅在 30Hz 的 `_tick()` → `_do_render()` 中更新。窗口 resize 后，Qt 可能在下一帧 paint 之前就触发 `_hit_test()` 命中控制点，此时缓存还是旧尺寸计算的坐标，导致命中位置偏差。
+
+修复：重写 `resizeEvent`，在窗口尺寸变化时立即刷新控制点缓存：
+```python
+def resizeEvent(self, event):
+    self._update_cp_positions()  # 用新尺寸重算投影
+    self.update()
+    super().resizeEvent(event)
+```
+
+### 4.10 Control Point Geom ID 指向指尖
+
+**坑（已修复）：** 最初 `CONTROL_POINTS` 的 `geom_id` 指向了近节指骨（proximal phalanx）的位置，而非远节指骨（distal phalanx / 指尖）。手指 mesh 从指骨根部延伸到指尖，但投影读的是近端一截的 body 位置，控制点始终比指尖"短一截"。
+
+L10 右手模型 XML 的 geom 排列顺序（含 floor）：
+```
+geom[0]  floor (plane)
+geom[1]  palm
+geom[2-6]  thumb (base1, base2, metacarpals, proximal, distal)
+geom[7-10] index (metacarpals, proximal, middle, distal)
+geom[11-13] middle (proximal, middle, distal)
+geom[14-17] ring (metacarpals, proximal, middle, distal)
+geom[18-21] pinky (metacarpals, proximal, middle, distal)
+```
+
+修复：geom_id 各 +1（拇指 +1 因为只有 proximal + distal，没有 middle phalanx）：
+```
+thumb_tip:   5 → 6   (thumb_distal)
+index_tip:   9 → 10  (index_distal)
+middle_tip: 12 → 13  (middle_distal)
+ring_tip:   16 → 17  (ring_distal)
+little_tip: 20 → 21  (pinky_distal)
+```
 
 ---
 

@@ -17,15 +17,7 @@ from unittest.mock import patch, MagicMock
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 # ── Mock 依赖 (必须在 import control_panel / gesture_dialogs 之前) ──
-_GESTURE_PRESETS_REAL = {
-    "open":      (255, 255, 255, 255, 255, 255, 255, 255, 255, 255),
-    "fist":      (122, 145,   0,   0,   0,   0,   0,   0,   0,  92),
-    "ok":        (108,  56, 118, 255, 255, 255, 255, 255, 255, 234),
-    "pinch":     (108,  56, 118,   0,   0,   0, 132,   0,   0, 234),
-    "point":     (116, 142, 255,   0,   0,   0,  49,  36,  81,  50),
-    "peace":     ( 96,  48, 255, 255,   0,   0, 255, 255, 255,  89),
-    "thumbs_up": (255, 255,   0,   0,   0,   0,   0,   0,   0, 255),
-}
+from tests._shared_mocks import _GESTURE_PRESETS_REAL
 
 _mock_gp = MagicMock()
 _mock_gp.GESTURE_PRESETS = _GESTURE_PRESETS_REAL

@@ -9,7 +9,7 @@ import os
 import itertools
 import numpy as np
 
-from PySide2.QtCore import Qt, QTimer, QPointF
+from PySide2.QtCore import Qt, QTimer, QPointF, QRectF
 from PySide2.QtGui import QPainter, QImage, QPen, QBrush, QColor
 from PySide2.QtWidgets import QWidget
 
@@ -29,11 +29,11 @@ from linker_hand_description import get_urdf_path
 # ============================================================================
 
 CONTROL_POINTS = [
-    {"name": "thumb_tip",    "geom_id": 5,  "dofs": [0, 1, 9],     "color": QColor(255, 102, 102, 200)},
-    {"name": "index_tip",    "geom_id": 9,  "dofs": [2, 6],        "color": QColor(102, 255, 102, 200)},
-    {"name": "middle_tip",   "geom_id": 12, "dofs": [3],           "color": QColor(102, 102, 255, 200)},
-    {"name": "ring_tip",     "geom_id": 16, "dofs": [4, 7],        "color": QColor(255, 255, 102, 200)},
-    {"name": "little_tip",   "geom_id": 20, "dofs": [5, 8],        "color": QColor(255, 102, 255, 200)},
+    {"name": "thumb_tip",    "geom_id": 6,  "dofs": [0, 1, 9],     "color": QColor(255, 102, 102, 200)},
+    {"name": "index_tip",    "geom_id": 10, "dofs": [2, 6],        "color": QColor(102, 255, 102, 200)},
+    {"name": "middle_tip",   "geom_id": 13, "dofs": [3],           "color": QColor(102, 102, 255, 200)},
+    {"name": "ring_tip",     "geom_id": 17, "dofs": [4, 7],        "color": QColor(255, 255, 102, 200)},
+    {"name": "little_tip",   "geom_id": 21, "dofs": [5, 8],        "color": QColor(255, 102, 255, 200)},
 ]
 
 
@@ -117,6 +117,12 @@ class HandModelWidget(QWidget):
         self._timer.timeout.connect(self._tick)
         self._timer.start(33)
 
+    def resizeEvent(self, event):
+        """窗口尺寸变化 → 立即刷新控制点缓存 (使用新尺寸重算投影)。"""
+        self._update_cp_positions()
+        self.update()
+        super().resizeEvent(event)
+
     # ==== 公共接口 ====
 
     def set_dof_values(self, values_10):
@@ -150,6 +156,23 @@ class HandModelWidget(QWidget):
 
     # ==== 投影 ====
 
+    def _get_image_rect(self):
+        """计算渲染图在 widget 中的实际绘制区域 (与 paintEvent 的 KeepAspectRatio 保持一致)。"""
+        w, h = self.width(), self.height()
+        if w <= 0 or h <= 0:
+            return QRectF(0, 0, w, h)
+        widget_aspect = w / h
+        render_aspect = self._render_w / self._render_h  # 4:3
+        if widget_aspect > render_aspect:
+            scaled_h = h
+            scaled_w = int(h * render_aspect)
+        else:
+            scaled_w = w
+            scaled_h = int(w / render_aspect)
+        x = (w - scaled_w) / 2
+        y = (h - scaled_h) / 2
+        return QRectF(x, y, scaled_w, scaled_h)
+
     def _project(self, pos_3d):
         """3D 世界坐标 → 2D 屏幕 QPointF 投影
 
@@ -162,7 +185,7 @@ class HandModelWidget(QWidget):
         3. 构建正交基: forward, right, up
         4. 将世界坐标转到相机坐标系: x = dot(rel, right), y = dot(rel, up), z = dot(rel, forward)
         5. 透视除法: sx = x * f / z, sy = y * f / z (f 为焦距)
-        6. 缩放到 widget 实际尺寸
+        6. 缩放到 widget 中渲染图的实际区域 (与 paintEvent 一致)
 
         Args:
             pos_3d: 3D 世界坐标 (numpy 数组或列表)
@@ -208,9 +231,10 @@ class HandModelWidget(QWidget):
         sx = self._render_w / 2 + x * f / z
         sy = self._render_h / 2 - y * f / z
 
-        # 缩放到 widget 尺寸
-        sx *= self.width() / self._render_w
-        sy *= self.height() / self._render_h
+        # 缩放到 widget 中渲染图的实际区域 (与 paintEvent 的 KeepAspectRatio 一致)
+        rect = self._get_image_rect()
+        sx = rect.left() + sx * (rect.width() / self._render_w)
+        sy = rect.top() + sy * (rect.height() / self._render_h)
 
         return QPointF(sx, sy)
 
