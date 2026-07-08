@@ -225,6 +225,186 @@ docker run -it --rm \
 
 > Docker 下 MuJoCo 渲染可能需要 NVIDIA GPU 直通（`--gpus all`，需安装 nvidia-container-toolkit）或软件渲染（`-e LIBGL_ALWAYS_SOFTWARE=1`）。
 
+## ROS2 通信接口
+
+系统采用 **发布/订阅** 模式，所有通信通过 topic 完成，无 service/action。
+
+### Topic 总览
+
+#### 后端 → Gateway（状态上报）
+
+| Topic | 类型 | 说明 |
+|------|------|------|
+| `/cb_right_hand_state` | `sensor_msgs/JointState` | 10 DOF 当前位置（0-255），来自 CAN 驱动或 MuJoCo 仿真 |
+| `/cb_right_hand_info` | `std_msgs/String` | 手部信息 JSON（版本、速度、故障、温度、扭矩） |
+| `/cb_right_hand_force` | `std_msgs/Float32MultiArray` | 单点触觉压力（4 组 x 5 指），仅 `is_touch=true` 时发布 |
+| `/cb_right_hand_matrix_touch` | `std_msgs/String` | 矩阵触觉 JSON（每指 12x6 网格 + 时间戳），仅 `touch_type > 1` 时发布 |
+| `/cb_right_hand_matrix_touch_pc` | `sensor_msgs/PointCloud2` | 矩阵触觉 PointCloud2 格式 |
+| `/cb_right_hand_matrix_touch_mass` | `std_msgs/String` | 每指触觉质量求和 JSON |
+
+#### Gateway 广播（状态镜像）
+
+| Topic | 类型 | 说明 |
+|------|------|------|
+| `/l10_gateway/current/dof` | `sensor_msgs/JointState` | 10 DOF 当前值（0-255），来自后端原始状态 |
+| `/l10_gateway/target/dof` | `sensor_msgs/JointState` | 10 DOF 目标值（0-255），经过速度限制/碰撞防护/触觉防护后的值 |
+| `/l10_gateway/current/skeleton` | `geometry_msgs/PoseArray` | 当前 FK 骨架（21 个 body 位姿） |
+| `/l10_gateway/target/skeleton` | `geometry_msgs/PoseArray` | 目标 FK 骨架 |
+| `/l10_gateway/current/control_points` | `geometry_msgs/PoseArray` | 当前 5 指尖控制点 |
+| `/l10_gateway/target/control_points` | `geometry_msgs/PoseArray` | 目标 5 指尖控制点 |
+| `/l10_gateway/camera` | `std_msgs/Float32MultiArray` | 相机状态 `[distance, nx, ny, nz]` |
+| `/l10_gateway/speed_limit` | `std_msgs/Float32` | 速度限制百分比（0-100，100=无限制） |
+| `/l10_gateway/sensor/force` | `std_msgs/Float32MultiArray` | 触觉压力（透传） |
+| `/l10_gateway/sensor/matrix_touch` | `std_msgs/String` | 矩阵触觉 JSON（透传） |
+| `/l10_gateway/sensor/matrix_touch_mass` | `std_msgs/String` | 触觉质量 JSON（透传） |
+
+#### 上层 → Gateway（命令输入）
+
+| Topic | 类型 | 说明 |
+|------|------|------|
+| `/l10_gateway/cmd/dof` | `sensor_msgs/JointState` | **直接 DOF 命令**：10 个关节值（0-255），由控制面板/LLM/RPS 发布 |
+| `/l10_gateway/cmd/skeleton` | `geometry_msgs/PoseArray` | 骨架命令：21 个位姿 → 逆 FK → DOF |
+| `/l10_gateway/cmd/control_points` | `geometry_msgs/PoseArray` | 控制点命令：5 个指尖 3D 位置 → IK → DOF（手部追踪使用） |
+| `/l10_gateway/cmd/control_points_diff` | `geometry_msgs/PoseArray` | 差分控制点：当前 CP + 偏移 → IK → DOF |
+| `/l10_gateway/cmd/camera` | `std_msgs/Float32MultiArray` | 相机命令：`[distance, nx, ny, nz]` |
+| `/l10_gateway/cmd/camera_diff` | `std_msgs/Float32MultiArray` | 差分相机：`[delta_distance, qx, qy, qz]` |
+| `/l10_gateway/cmd/speed_limit` | `std_msgs/Float32` | 速度限制：0-100 百分比 |
+
+#### Gateway → 后端（控制转发）
+
+| Topic | 类型 | 说明 |
+|------|------|------|
+| `/cb_right_hand_control_cmd` | `sensor_msgs/JointState` | 10 DOF 控制命令，转发给 CAN 驱动或 MuJoCo 仿真 |
+| `/cb_hand_setting_cmd` | `std_msgs/String` | 设置命令 JSON（`set_speed`、`set_max_torque_limits`、`clear_faults`、`set_electric_current`） |
+
+### 消息格式
+
+#### `sensor_msgs/JointState`（DOF 命令/状态）
+
+```text
+header:   标准 ROS2 消息头（frame_id, stamp）
+name:     关节名称列表（DOF 命令可省略，按顺序映射）
+position: float64[] — 10 个 DOF 值（0.0-255.0）
+velocity: float64[] — 关节速度（通常省略）
+effort:   float64[] — 关节力矩（通常省略）
+```
+
+**10 DOF 顺序**（与 `DOF_ORDER` 一致）：
+
+| 索引 | 名称 | 说明 |
+|------|------|------|
+| 0 | thumb_bend | 拇指弯曲 |
+| 1 | thumb_lateral | 拇指侧摆 |
+| 2 | index_bend | 食指弯曲 |
+| 3 | middle_bend | 中指弯曲 |
+| 4 | ring_bend | 无名指弯曲 |
+| 5 | little_bend | 小指弯曲 |
+| 6 | index_lateral | 食指侧摆 |
+| 7 | ring_lateral | 无名指侧摆 |
+| 8 | little_lateral | 小指侧摆 |
+| 9 | thumb_rotation | 拇指旋转 |
+
+#### `geometry_msgs/PoseArray`（骨架/控制点）
+
+```text
+header:   标准 ROS2 消息头
+poses:    Pose[] — 每个 Pose 包含：
+  position:    Point(x, y, z) — 米制单位，MuJoCo 坐标系
+  orientation: Quaternion(x, y, z, w)
+```
+
+- **骨架**：21 个 Pose（手腕 + 20 个关节）
+- **控制点**：5 个 Pose（拇指/食指/中指/无名指/小指指尖）
+
+#### `std_msgs/Float32MultiArray`（相机/触觉）
+
+```text
+data: float32[]
+```
+
+- **相机状态**：`[distance, nx, ny, nz]` — 距离 + 掌心法向量
+- **触觉压力**：4 组 x 5 指 = 20 个 float32 值
+
+#### `std_msgs/String`（设置/触觉 JSON）
+
+```json
+// 设置命令示例：
+{"cmd": "set_speed", "value": 100}
+{"cmd": "set_max_torque_limits", "values": [100, 100, ...]}
+{"cmd": "clear_faults"}
+{"cmd": "set_electric_current", "value": 500}
+
+// 矩阵触觉示例：
+{"finger": 0, "timestamp": 1234567890, "data": [[0,1,...], ...]}
+```
+
+### 命令行操作示例
+
+```bash
+# ---- 查看 topic 列表 ----
+ros2 topic list
+
+# ---- 查看当前 DOF 状态（实时流） ----
+ros2 topic echo /l10_gateway/current/dof
+
+# ---- 查看目标 DOF ----
+ros2 topic echo /l10_gateway/target/dof
+
+# ---- 查看 5 指尖控制点 ----
+ros2 topic echo /l10_gateway/current/control_points
+
+# ---- 查看速度限制 ----
+ros2 topic echo /l10_gateway/speed_limit
+
+# ---- 查看触觉数据 ----
+ros2 topic echo /l10_gateway/sensor/force
+ros2 topic echo /l10_gateway/sensor/matrix_touch
+
+# ---- 查看 topic 频率 ----
+ros2 topic hz /l10_gateway/current/dof
+
+# ---- 查看 topic 信息（类型、发布者、订阅者） ----
+ros2 topic info /l10_gateway/cmd/dof
+
+# ---- 查看所有 gateway 相关 topic ----
+ros2 topic list | grep l10_gateway
+
+# ---- 发送 DOF 命令（握拳：全部 0） ----
+ros2 topic pub /l10_gateway/cmd/dof sensor_msgs/msg/JointState \
+  "{header: {stamp: {sec: 0, nanosec: 0}, frame_id: ''}, \
+    name: ['thumb_bend','thumb_lateral','index_bend','middle_bend','ring_bend','little_bend','index_lateral','ring_lateral','little_lateral','thumb_rotation'], \
+    position: [0,0,0,0,0,0,0,0,0,0], velocity: [], effort: []}"
+
+# ---- 发送 DOF 命令（张开手掌：全部 255） ----
+ros2 topic pub /l10_gateway/cmd/dof sensor_msgs/msg/JointState \
+  "{header: {stamp: {sec: 0, nanosec: 0}, frame_id: ''}, \
+    name: ['thumb_bend','thumb_lateral','index_bend','middle_bend','ring_bend','little_bend','index_lateral','ring_lateral','little_lateral','thumb_rotation'], \
+    position: [255,255,255,255,255,255,255,255,255,255], velocity: [], effort: []}"
+
+# ---- 发送 DOF 命令（竖大拇指） ----
+ros2 topic pub /l10_gateway/cmd/dof sensor_msgs/msg/JointState \
+  "{header: {stamp: {sec: 0, nanosec: 0}, frame_id: ''}, \
+    name: ['thumb_bend','thumb_lateral','index_bend','middle_bend','ring_bend','little_bend','index_lateral','ring_lateral','little_lateral','thumb_rotation'], \
+    position: [200,220,0,0,0,0,0,0,0,50], velocity: [], effort: []}"
+
+# ---- 设置速度限制（50%） ----
+ros2 topic pub /l10_gateway/cmd/speed_limit std_msgs/msg/Float32 "{data: 50.0}"
+
+# ---- 发送设置命令（清故障） ----
+ros2 topic pub /cb_hand_setting_cmd std_msgs/msg/String \
+  '{data: "{\"cmd\": \"clear_faults\"}"}'
+
+# ---- 查看节点图 ----
+ros2 node list
+ros2 node info /l10_hand_gateway
+
+# ---- 查看所有节点之间的连接 ----
+ros2 node info /l10_hand_gateway  # 显示该节点的 pub/sub
+```
+
+> **提示：** `ros2 topic pub` 默认只发一次。持续发送添加 `-r 10` 参数（10Hz）。
+> 也可以先用 `--once` 发送一条测试命令观察效果。
+
 ## DOF 参考表
 
 L10 右手有 10 个自由度，值范围 0-255：
