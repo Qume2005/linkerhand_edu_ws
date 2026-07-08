@@ -470,15 +470,18 @@ class HandTrackingNode(Node):
                 if os.path.isfile(model_path):
                     os.remove(model_path)
                 self.get_logger().info('下载 HandLandmarker 模型...')
+                download_ok = False
                 try:
                     import urllib.request
                     urllib.request.urlretrieve(
                         'https://storage.googleapis.com/mediapipe-models/'
                         'hand_landmarker/hand_landmarker/float16/1/'
                         'hand_landmarker.task', alternate_model_path)
+                    download_ok = True
+                    self.get_logger().info('模型下载成功: %s' % alternate_model_path)
                 except Exception as e:
-                    self.get_logger().error("模型下载失败: %s" % e)
-                    raise
+                    self.get_logger().error("模型下载失败（网络不可用？）: %s" % e)
+                    # 不在此处 raise → 继续到下方最终校验，给出更清晰的错误信息
 
             if not _is_valid_model(model_path):
                 if _is_valid_model(alternate_model_path):
@@ -487,8 +490,15 @@ class HandTrackingNode(Node):
                     model_path = alternate_model_path
                 else:
                     raise RuntimeError(
-                        "HandLandmarker 模型无效，主路径与备用路径均不可用: "
-                        f"{model_path}, {alternate_model_path}"
+                        "HandLandmarker 模型无效，主路径与备用路径均不可用。\n"
+                        "可能原因：\n"
+                        "  1. ISO 构建时未正确捆绑模型文件\n"
+                        "  2. 网络不可用且模型文件缺失\n"
+                        "解决方案：\n"
+                        "  - 连接网络后重启程序（将自动下载模型）\n"
+                        "  - 或手动将 hand_landmarker.task 放置到以下任一路径：\n"
+                        f"    {model_path}\n"
+                        f"    {alternate_model_path}"
                     )
 
             base_options = BaseOptions(model_asset_path=model_path)
