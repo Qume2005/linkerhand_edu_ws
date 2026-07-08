@@ -330,7 +330,7 @@ def draw_tracking(img, landmarks, handedness, targets, curls):
         (5, 9), (9, 13), (13, 17),
     ]
     colors = [(255, 0, 0), (0, 255, 255), (0, 255, 0), (255, 255, 0), (255, 0, 255)]
-    names = ['拇指', '食指', '中指', '无名指', '小指']
+    names = ['Thumb', 'Index', 'Middle', 'Ring', 'Little']
 
     for s, e in connections:
         p1 = (int(landmarks[s][0] * w), int(landmarks[s][1] * h))
@@ -348,79 +348,14 @@ def draw_tracking(img, landmarks, handedness, targets, curls):
     cv2.circle(img, (int(palm[0] * w), int(palm[1] * h)), 10, (0, 255, 255), 2)
 
     # 标签
-    label = f"右手 → L10 映射"
-    _draw_cn_text(img, label, 10, 25, font_size=16, color=(255, 255, 0))
+    label = "Right Hand → L10 Mapping"
+    cv2.putText(img, label, (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
 
     # 控制点信息 + 弯曲比
     if targets:
         for i, (name, t, c, cr) in enumerate(zip(names, targets, colors, curls)):
             text = f"CP{i} {name}: curl={cr:.2f} [{t[0]:.3f}, {t[1]:.3f}, {t[2]:.3f}]"
-            _draw_cn_text(img, text, 10, 55 + i * 20, font_size=14, color=c)
-
-
-# ---------------------------------------------------------------------------
-# UI 工具：中文文本绘制（cv2.putText 不支持中文，用 PIL + CJK 字体）
-# ---------------------------------------------------------------------------
-
-_CN_FONT_PATHS = [
-    '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',
-    '/usr/share/fonts/truetype/arphic/uming.ttc',
-    '/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc',
-]
-_cn_font_path: str | None = None
-_cn_font_cache: dict[int, object] = {}
-
-
-def _resolve_cn_font_path() -> str | None:
-    global _cn_font_path
-    if _cn_font_path is None:
-        for path in _CN_FONT_PATHS:
-            if os.path.exists(path):
-                _cn_font_path = path
-                break
-    return _cn_font_path
-
-
-def _draw_centered_cn_text(img, text, font_size=40, color=(0, 255, 255)):
-    """在图像中央绘制中文（PIL + CJK 字体），字体不可用时降级 cv2 英文。"""
-    path = _resolve_cn_font_path()
-    h, w = img.shape[:2]
-    if path:
-        from PIL import Image, ImageDraw, ImageFont
-        font = _cn_font_cache.get(font_size)
-        if font is None:
-            font = ImageFont.truetype(path, font_size)
-            _cn_font_cache[font_size] = font
-        pil_img = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
-        draw = ImageDraw.Draw(pil_img)
-        bbox = draw.textbbox((0, 0), text, font=font)
-        tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
-        org = ((w - tw) // 2 - bbox[0], (h - th) // 2 - bbox[1])
-        draw.text(org, text, font=font, fill=(color[2], color[1], color[0]))
-        return cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
-    # 降级：字体缺失时用英文
-    cv2.putText(img, "Waiting for camera...", (w // 2 - 140, h // 2),
-                cv2.FONT_HERSHEY_SIMPLEX, 1.0, color, 2, cv2.LINE_AA)
-    return img
-
-
-def _draw_cn_text(img, text, x, y, font_size=20, color=(255, 255, 255)):
-    """在图像指定坐标绘制中文（PIL + CJK 字体），直接修改 img。
-
-    字体不可用时跳过（不绘制）。
-    """
-    path = _resolve_cn_font_path()
-    if not path:
-        return
-    from PIL import Image, ImageDraw, ImageFont
-    font = _cn_font_cache.get(font_size)
-    if font is None:
-        font = ImageFont.truetype(path, font_size)
-        _cn_font_cache[font_size] = font
-    pil_img = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
-    draw = ImageDraw.Draw(pil_img)
-    draw.text((x, y), text, font=font, fill=(color[2], color[1], color[0]))
-    img[:] = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
+            cv2.putText(img, text, (10, 55 + i * 20), cv2.FONT_HERSHEY_SIMPLEX, 0.45, c, 1, cv2.LINE_AA)
 
 
 # ---------------------------------------------------------------------------
@@ -583,14 +518,15 @@ class HandTrackingNode(Node):
             self._gateway_target_dof = [float(v) for v in msg.position[:10]]
 
     def _show_waiting_frame(self):
-        """摄像头未就绪时的占位画面 —— 居中显示「等待摄像头...」（与 RPS 一致）。
+        """摄像头未就绪时的占位画面 —— 居中显示「Waiting for camera...」。
 
         摄像头后台线程尚未产出首帧（或打开失败）时，_tick 调用本方法在
         OpenCV 窗口显示等待提示，而不是空窗口或直接崩溃。
         """
         img = np.zeros((480, 640, 3), dtype=np.uint8)
-        img = _draw_centered_cn_text(img, "等待摄像头...", font_size=42)
-        cv2.imshow('L10 手势跟踪', img)
+        cv2.putText(img, "Waiting for camera...", (120, 240),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2, cv2.LINE_AA)
+        cv2.imshow('L10 Hand Tracking', img)
         cv2.waitKey(1)  # 驱动事件循环，避免等待态下窗口无响应
 
     def _tick(self):
@@ -669,10 +605,11 @@ class HandTrackingNode(Node):
 
         # ---- 无手部检测时显示提示 ----
         if result is None:
-            _draw_cn_text(frame, "未检测到手部", 10, 30, font_size=22, color=(0, 0, 255))
+            cv2.putText(frame, "No hand detected", (10, 30),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 0, 255), 2, cv2.LINE_AA)
             if self._cal_mode:
                 self._draw_cal_overlay(frame)
-            cv2.imshow('L10 手势跟踪', frame)
+            cv2.imshow('L10 Hand Tracking', frame)
             return
 
         # ---- 关键点提取与镜像 ----
@@ -759,39 +696,44 @@ class HandTrackingNode(Node):
         draw_tracking(frame, result["landmarks"], handedness, self._smooth_cp, curls)
         if self._cal_mode:
             self._draw_cal_overlay(frame, landmarks)
-        cv2.imshow('L10 手势跟踪', frame)
+        cv2.imshow('L10 Hand Tracking', frame)
 
     def _draw_cal_overlay(self, img, landmarks=None):
-        """校准模式 UI 叠加"""
+        """Calibration mode UI overlay"""
         h, w = img.shape[:2]
 
-        # 横幅
+        # banner
         cv2.rectangle(img, (0, 0), (w, 50), (0, 0, 180), -1)
-        _draw_cn_text(img, "校准模式", 10, 35, font_size=22, color=(255, 255, 255))
+        cv2.putText(img, "CALIBRATION MODE", (10, 35),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2, cv2.LINE_AA)
 
-        # 操作提示
+        # instructions
         y = 65
-        _draw_cn_text(img, "C=完成保存  SPACE=采样", 10, y, font_size=14, color=(200, 200, 200))
+        cv2.putText(img, "C=finish&save  SPACE=sample", (10, y),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.55, (200, 200, 200), 1, cv2.LINE_AA)
         y += 20
-        _draw_cn_text(img, f"采样数: {len(self._cal_samples)}", 10, y, font_size=14, color=(200, 200, 200))
+        cv2.putText(img, f"Samples: {len(self._cal_samples)}", (10, y),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.55, (200, 200, 200), 1, cv2.LINE_AA)
         y += 20
 
-        # gateway DOF + 当前 CP delta
+        # gateway DOF + current CP delta
         if self._gateway_target_dof is not None and landmarks:
             gw_dof = self._gateway_target_dof
             raw_cp = landmarks_to_control_points(landmarks, None, 640, 480)
             correct_cp = _fk_control_points(gw_dof)
             curl_str = ', '.join(f'{v:.2f}' for v in compute_finger_curls(landmarks))
-            _draw_cn_text(img, f"curl: [{curl_str}]", 10, y, font_size=12, color=(180, 180, 180))
+            cv2.putText(img, f"curl: [{curl_str}]", (10, y),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (180, 180, 180), 1, cv2.LINE_AA)
             y += 16
-            for fi, name in enumerate(['拇', '食', '中', '无名', '小']):
+            for fi, name in enumerate(['Thb', 'Idx', 'Mid', 'Rng', 'Lit']):
                 d = correct_cp[fi] - raw_cp[fi]
-                _draw_cn_text(img, f"{name} dY={d[1]:+.4f} dZ={d[2]:+.4f}", 10, y,
-                              font_size=11, color=(0, 200, 200))
+                cv2.putText(img, f"{name} dY={d[1]:+.4f} dZ={d[2]:+.4f}", (10, y),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 200, 200), 1, cv2.LINE_AA)
                 y += 14
         elif landmarks:
             curl_str = ', '.join(f'{v:.2f}' for v in compute_finger_curls(landmarks))
-            _draw_cn_text(img, f"curl: [{curl_str}]", 10, y, font_size=12, color=(180, 180, 180))
+            cv2.putText(img, f"curl: [{curl_str}]", (10, y),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (180, 180, 180), 1, cv2.LINE_AA)
 
     def _detect_full(self, rgb):
         if USE_TASK_API:
