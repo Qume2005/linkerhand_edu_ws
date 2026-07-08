@@ -2,7 +2,7 @@
 手势跟随仿真: MuJoCo 仿真后端 + 网关 + 摄像头手势跟踪
 launch: ros2 launch l10_right_hand_tracking hand_tracking_sim.launch.py
 可选参数:
-  camera_id  — 摄像头编号, 默认 0
+  camera_id  — 摄像头编号, -1=自动扫描, 默认 -1
   publish_hz — 发布频率, 默认 30
 """
 import os
@@ -44,7 +44,7 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
-        DeclareLaunchArgument('camera_id', default_value='0'),
+        DeclareLaunchArgument('camera_id', default_value='-1'),
         DeclareLaunchArgument('publish_hz', default_value='30'),
         sim_launch,
         tracking_node,

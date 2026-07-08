@@ -54,7 +54,7 @@ class RockPaperScissorsNode(Node):
         super().__init__('rock_paper_scissors_node')
 
         # ROS 参数
-        self.declare_parameter('camera_id', 0)
+        self.declare_parameter('camera_id', -1)
         camera_id = self.get_parameter('camera_id').get_parameter_value().integer_value
 
         # ROS 话题

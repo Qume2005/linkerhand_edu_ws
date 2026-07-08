@@ -18,6 +18,8 @@ import zipfile
 import cv2
 import numpy as np
 
+from l10_right_hand_camera.camera_capture import find_available_camera
+
 logger = logging.getLogger(__name__)
 
 # 手势标签
@@ -53,13 +55,17 @@ class GestureDetector:
 
     自动检测系统安装的 MediaPipe 版本，优先使用 Legacy API，
     不可用时降级到 Task API。
+
+    camera_id=-1（默认）时自动扫描 0-9 寻找第一个可用摄像头。
     """
 
-    def __init__(self, camera_id: int = 0):
+    def __init__(self, camera_id: int = -1):
         if _USE_LEGACY_API is None:
             raise RuntimeError(
                 "MediaPipe 不可用，请安装: pip install mediapipe")
 
+        if camera_id == -1:
+            camera_id = find_available_camera()
         self._camera_id = camera_id
         self._cap: cv2.VideoCapture | None = None
 
@@ -172,6 +178,11 @@ class GestureDetector:
 
     def _capture_loop(self) -> None:
         """摄像头采集循环（在独立线程中运行）。"""
+        if self._camera_id == -1:
+            logger.error("无可用摄像头，采集线程退出")
+            self._running = False
+            return
+
         self._cap = cv2.VideoCapture(self._camera_id)
         if not self._cap.isOpened():
             logger.error("无法打开摄像头 (camera_id=%d)", self._camera_id)

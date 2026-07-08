@@ -70,9 +70,19 @@ class TestDetectorInit:
             GestureDetector, _USE_LEGACY_API,
         )
         # 不需要摄像头，只验证 __init__ 不抛异常
-        detector = GestureDetector(camera_id=0)
+        detector = GestureDetector()
         assert detector is not None
         assert detector.get_gesture() == "none"
+
+    def test_detector_with_explicit_camera_id(self):
+        """显式传入 camera_id=1 应正常初始化（不触发自动扫描）。"""
+        from l10_right_hand_rock_paper_scissors.gesture_detector import (
+            GestureDetector, _USE_LEGACY_API,
+        )
+        detector = GestureDetector(camera_id=1)
+        assert detector is not None
+        assert detector.get_gesture() == "none"
+        assert detector._camera_id == 1
 
     def test_detector_classify_is_static(self):
         from l10_right_hand_rock_paper_scissors.gesture_detector import GestureDetector

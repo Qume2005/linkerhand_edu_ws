@@ -45,7 +45,7 @@ from hand_forward_kinematics.kinematics import (
     compute_fk,
 )
 
-from l10_right_hand_tracking.camera_capture import CameraCapture
+from l10_right_hand_camera.camera_capture import CameraCapture
 
 
 # MediaPipe 指尖索引 → MuJoCo 控制点顺序
@@ -428,7 +428,7 @@ class HandTrackingNode(Node):
 
     ROS 参数
     --------
-    - ``camera_id`` (int, 默认 0): 摄像头设备号
+    - ``camera_id`` (int, 默认 -1): 摄像头设备号，-1=自动扫描
     - ``publish_hz`` (int, 默认 30): 发布频率 (Hz)
 
     话题接口
@@ -445,7 +445,7 @@ class HandTrackingNode(Node):
     def __init__(self):
         super().__init__('hand_tracking_node')
 
-        self.declare_parameter('camera_id', 0)
+        self.declare_parameter('camera_id', -1)
         self.declare_parameter('publish_hz', 30)
         cam_id = self.get_parameter('camera_id').get_parameter_value().integer_value
         hz = self.get_parameter('publish_hz').get_parameter_value().integer_value

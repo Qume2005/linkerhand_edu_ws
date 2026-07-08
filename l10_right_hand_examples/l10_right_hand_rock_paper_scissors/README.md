@@ -86,7 +86,10 @@ ros2 launch l10_right_hand_rock_paper_scissors rock_paper_scissors_real.launch.p
 
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
-| `camera_id` | `0` | 摄像头编号 |
+| `camera_id` | `-1` | 摄像头编号，-1=自动扫描 |
+
+> **摄像头自动扫描：** 默认自动扫描可用摄像头（0-9），无需手动指定 `camera_id`。
+> 如有多个摄像头，可通过参数指定：`camera_id:=2`
 
 ```bash
 ros2 launch l10_right_hand_rock_paper_scissors rock_paper_scissors_sim.launch.py camera_id:=1

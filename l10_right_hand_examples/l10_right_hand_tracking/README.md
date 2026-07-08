@@ -18,6 +18,10 @@ ros2 launch l10_right_hand_tracking hand_tracking_sim.launch.py
 ros2 launch l10_right_hand_tracking hand_tracking_real.launch.py
 ```
 
+> **摄像头自动扫描：** 默认自动扫描可用摄像头（0-9），无需手动指定 `camera_id`。
+> 如有多个摄像头，可通过 `camera_id` 参数指定：`camera_id:=2`
+```
+
 ## 概述
 
 系统通过摄像头捕获用户手部姿态，利用 MediaPipe 提取 21 个手部关键点，
@@ -219,8 +223,11 @@ landmarks (21 points) → curls (5 values) → raw DOF (10 values)
 
 | 参数 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
-| `camera_id` | int | 0 | 摄像头设备号 (/dev/videoX) |
+| `camera_id` | int | -1 | 摄像头设备号，-1=自动扫描 |
 | `publish_hz` | int | 30 | 控制点发布频率 (Hz) |
+
+> **自动扫描：** 默认 `camera_id=-1` 时自动遍历 0-9 寻找第一个可用摄像头。
+> 如有多个摄像头，可手动指定：`camera_id:=2`
 
 ## 话题接口
 

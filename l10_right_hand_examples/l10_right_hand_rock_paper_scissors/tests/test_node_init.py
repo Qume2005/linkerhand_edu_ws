@@ -56,7 +56,7 @@ class TestFullNodeInit:
         )
         assert _USE_LEGACY_API is not None, "MediaPipe 应该可用"
 
-        detector = GestureDetector(camera_id=0)
+        detector = GestureDetector(camera_id=1)
         assert detector.get_gesture() == "none"
         assert detector.get_frame() is None
 
@@ -78,7 +78,7 @@ class TestFullNodeInit:
 
         audio = AudioPlayer()
         audio.init()
-        detector = GestureDetector(camera_id=0)
+        detector = GestureDetector(camera_id=1)
         engine = GameEngine()
         widget = GameWidget(engine, detector, audio)
 
@@ -100,7 +100,7 @@ class TestFullNodeInit:
         audio.init()
 
         # 2. GestureDetector
-        detector = GestureDetector(camera_id=0)
+        detector = GestureDetector(camera_id=1)
 
         # 3. GameEngine（含模式切换）
         engine = GameEngine()
@@ -129,7 +129,7 @@ class TestFullNodeInit:
         from l10_right_hand_rock_paper_scissors.gesture_detector import GestureDetector
 
         audio = AudioPlayer()
-        detector = GestureDetector(camera_id=0)
+        detector = GestureDetector(camera_id=1)
         engine = GameEngine()
         widget = GameWidget(engine, detector, audio)
 

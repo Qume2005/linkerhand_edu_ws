@@ -2,7 +2,7 @@
 石头剪刀布真机: CAN 驱动 + 网关 + 面板 + 可视化 + 石头剪刀布游戏
 launch: ros2 launch l10_right_hand_rock_paper_scissors rock_paper_scissors_real.launch.py
 可选参数:
-  camera_id  — 摄像头编号, 默认 0
+  camera_id  — 摄像头编号, -1=自动扫描, 默认 -1
   can_port   — CAN 接口, 默认 can0
   is_touch   — 触觉传感器, 默认 true
   topic_hz   — 驱动频率, 默认 30
@@ -46,7 +46,7 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
-        DeclareLaunchArgument('camera_id', default_value='0'),
+        DeclareLaunchArgument('camera_id', default_value='-1'),
         fix_qt_plugin,
         real_launch,
         game_node,

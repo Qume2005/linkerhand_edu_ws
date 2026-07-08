@@ -7,6 +7,7 @@
 进入「主路径模型无效，使用备用路径」的分支，然后断言 warning 的调用形式。
 """
 
+import inspect
 import sys
 import unittest
 from unittest.mock import MagicMock, patch
@@ -153,6 +154,64 @@ class TestLoggerWarningRegression(unittest.TestCase):
         with self.assertRaises(AssertionError):
             self.assertEqual(len(positional_args), 1,
                 f"旧代码的多参数 warning 调用应被拒绝：实际收到 {len(positional_args)} 个位置参数")
+
+
+class TestCameraIdParameter(unittest.TestCase):
+    """验证 camera_id 参数声明、读取和传递管道。"""
+
+    def test_camera_id_declared_with_default_minus_one(self):
+        """HandTrackingNode.__init__ 必须声明 camera_id 参数，默认值 -1（自动扫描）。"""
+        source = inspect.getsource(HandTrackingNode.__init__)
+        self.assertIn(
+            "declare_parameter('camera_id', -1)",
+            source,
+            "HandTrackingNode.__init__ 应包含 declare_parameter('camera_id', -1)"
+        )
+
+    def test_camera_id_read_as_integer(self):
+        """camera_id 参数应以 integer_value 形式读取（与 launch 传递的整数一致）。"""
+        source = inspect.getsource(HandTrackingNode.__init__)
+        self.assertIn(
+            "get_parameter_value().integer_value",
+            source,
+            "camera_id 应以 integer_value 读取，确保与 launch 层传递的整数类型一致"
+        )
+
+    def test_camera_id_forwarded_to_camera_capture(self):
+        """camera_id 读取后应传递给 CameraCapture。"""
+        source = inspect.getsource(HandTrackingNode.__init__)
+        self.assertIn(
+            "CameraCapture(cam_id)",
+            source,
+            "camera_id 读取后应传递给 CameraCapture(cam_id)"
+        )
+
+    def test_custom_camera_id_value_used_correctly(self):
+        """验证非默认 camera_id 值可正确传递给 CameraCapture。
+
+        使用返回 mock 对象的函数模拟 get_parameter 链式调用。
+        """
+        mock_param_value = MagicMock()
+        mock_param_value.integer_value = 2
+        # 确保 get_parameter_value() 返回 mock_param_value 自身，而非自动创建子 mock
+        mock_param_value.get_parameter_value.return_value = mock_param_value
+
+        def fake_get_parameter(name):
+            if name == 'camera_id':
+                return mock_param_value
+            raise KeyError(name)
+
+        node = HandTrackingNode.__new__(HandTrackingNode)
+        node.get_parameter = fake_get_parameter
+
+        # 模拟节点中的 camera_id 读取逻辑
+        cam_id = node.get_parameter('camera_id').get_parameter_value().integer_value
+        self.assertEqual(cam_id, 2)
+
+        # 验证该值可直接用于 CameraCapture 构造函数
+        from l10_right_hand_camera.camera_capture import CameraCapture
+        cap = CameraCapture(cam_id)
+        self.assertEqual(cap._camera_id, 2)
 
 
 if __name__ == '__main__':

@@ -1,11 +1,10 @@
-"""摄像头后台采集模块 —— 镜像 RPS (GestureDetector) 的采集模式。
+"""摄像头后台采集模块 —— 共享包（被 tracking 和 RPS 共用）。
 
-在独立守护线程中持续读取摄像头帧并缓存「最新帧」，供主循环（ROS 定时器）
-轮询。打开/读帧失败时不抛异常，仅记日志（与 RPS 行为一致），调用方通过
-``get_frame()`` 返回 ``None`` 判定「等待摄像头」状态。
+在独立守护线程中持续读取摄像头帧并缓存「最新帧」，供主循环轮询。
+打开/读帧失败时不抛异常，仅记日志，调用方通过 ``get_frame()`` 返回 ``None``
+判定「等待摄像头」状态。
 
-驱动方式与 RPS 对齐：使用普通 ``cv2.VideoCapture(camera_id)``，不显式指定
-V4L2 后端、MJPG 或分辨率，规避 OpenCV 自带 Qt 插件与系统 Qt5 的依赖冲突。
+自动扫描: ``camera_id=-1``（默认）时自动遍历 0-9 寻找第一个可用的摄像头。
 """
 
 import logging
@@ -18,20 +17,53 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 
+def find_available_camera(max_index: int = 10) -> int:
+    """扫描可用的摄像头设备。
+
+    依次尝试 ``cv2.VideoCapture(i)``，返回第一个 ``isOpened()`` 为 True 的索引。
+    适合用户不确定摄像头编号时自动发现设备。
+
+    Args:
+        max_index: 最大扫描索引（不含），默认扫描 0-9。
+
+    Returns:
+        第一个能成功打开的摄像头索引；全部失败返回 -1。
+    """
+    for i in range(max_index):
+        cap = cv2.VideoCapture(i)
+        if cap.isOpened():
+            cap.release()
+            logger.info("找到可用摄像头: /dev/video%d", i)
+            return i
+        cap.release()
+    logger.warning("未找到可用摄像头（扫描范围 0-%d）", max_index - 1)
+    return -1
+
+
 class CameraCapture:
     """后台线程摄像头采集器。
 
     用法::
 
-        cap = CameraCapture(camera_id=0)
+        cap = CameraCapture()            # 自动扫描
+        cap = CameraCapture(camera_id=2)  # 指定设备
         cap.start()
         frame = cap.get_frame()   # None 表示摄像头尚未就绪
         ...
         cap.stop()
     """
 
-    def __init__(self, camera_id: int = 0):
-        self._camera_id = camera_id
+    def __init__(self, camera_id: int = -1):
+        """初始化摄像头采集器。
+
+        Args:
+            camera_id: 摄像头设备号。传入 -1（默认）时自动扫描 0-9 寻找
+                第一个可用摄像头；传入 >=0 时直接使用指定设备。
+        """
+        if camera_id == -1:
+            self._camera_id = find_available_camera()
+        else:
+            self._camera_id = camera_id
         self._cap: cv2.VideoCapture | None = None
         self._latest_frame: np.ndarray | None = None
         self._lock = threading.Lock()
@@ -71,10 +103,13 @@ class CameraCapture:
 
     def _capture_loop(self) -> None:
         """后台采集循环（守护线程）。"""
-        # 与 RPS 对齐：普通方式打开，不指定 V4L2/MJPG/分辨率
+        if self._camera_id == -1:
+            logger.error("无可用摄像头，采集线程退出")
+            self._running = False
+            return
+
         self._cap = cv2.VideoCapture(self._camera_id)
         if not self._cap.isOpened():
-            # 不崩溃：仅记日志，调用方通过 get_frame()==None 显示等待画面
             logger.error("无法打开摄像头 (camera_id=%d)", self._camera_id)
             self._running = False
             return

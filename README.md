@@ -170,6 +170,8 @@ ros2 launch l10_right_hand_rock_paper_scissors rock_paper_scissors_sim.launch.py
 ros2 launch l10_right_hand_rock_paper_scissors rock_paper_scissors_real.launch.py
 ```
 
+> **摄像头自动扫描：** 手部追踪和石头剪刀布默认自动扫描可用摄像头（0-9），无需手动指定 `camera_id`。如有多个摄像头，可通过 `camera_id` 参数指定设备号，如 `camera_id:=2`。
+
 ## 目录结构
 
 ```

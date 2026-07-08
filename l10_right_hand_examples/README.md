@@ -55,11 +55,11 @@ ros2 launch l10_right_hand_llm llm_control_real.launch.py can_port:=can0
 colcon build --packages-select l10_right_hand_tracking
 source install/setup.bash
 
-# 仿真模式
-ros2 launch l10_right_hand_tracking hand_tracking_sim.launch.py camera_id:=0
+# 仿真模式（自动扫描摄像头）
+ros2 launch l10_right_hand_tracking hand_tracking_sim.launch.py
 
-# 真机模式
-ros2 launch l10_right_hand_tracking hand_tracking_real.launch.py camera_id:=0
+# 真机模式（自动扫描摄像头）
+ros2 launch l10_right_hand_tracking hand_tracking_real.launch.py
 ```
 
 需要 USB 摄像头。启动后按 `C` 键进入校准模式改善追踪精度。

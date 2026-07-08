@@ -10,7 +10,7 @@
 
 import time
 
-from l10_right_hand_tracking.camera_capture import CameraCapture
+from l10_right_hand_camera.camera_capture import CameraCapture
 
 _MISSING_ID = 99  # 本机摄像头通常为 0/1，99 号不存在
 
