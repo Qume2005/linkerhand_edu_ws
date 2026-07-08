@@ -36,37 +36,42 @@ PRESETS = GESTURE_PRESETS
 
 # ---------- set_hand_dof 描述 ----------
 _GESTURE_NAME_MAP = {
-    "open": "Open hand (all straight)",
-    "fist": "Fist (all closed)",
-    "peace": "Peace / V sign (index+middle extended, rest closed, thumb tucked)",
-    "ok": "OK gesture",
-    "pinch": "Pinch",
-    "point": "Point (index finger extended)",
-    "thumbs_up": "Thumbs up (thumb extended, rest closed)",
+    "open": "张开手掌（全部伸直）",
+    "fist": "握拳（全部弯曲）",
+    "peace": "剪刀手/V字（食指+中指伸出，其余弯曲，拇指内收）",
+    "ok": "OK 手势",
+    "pinch": "捏合",
+    "point": "指向（食指伸出）",
+    "thumbs_up": "点赞（拇指伸出，其余弯曲）",
 }
 
 _SET_DOF_PREAMBLE = (
-    "Set the joint positions of a 10-DOF robotic hand. Each value is an integer "
-    "from 0 to 255. The 10 values in order are: thumb_bend, thumb_lateral, "
-    "index_bend, middle_bend, ring_bend, little_bend, index_lateral, "
-    "ring_lateral, little_lateral, thumb_rotation.\n\n"
-    "Value semantics vary by DOF type:\n"
-    "- Bend DOFs (thumb_bend, index/middle/ring/little_bend): 0=fully bent (curled into palm), 255=fully straight (extended).\n"
-    "- Lateral DOFs (index/ring/little_lateral): 0=fingers touching each other, 255=fingers spread apart.\n"
-    "- thumb_lateral: 0=thumb tucked tightly against the palm/fingers, 255=thumb spread wide away from the palm.\n"
-    "- thumb_rotation: 0=thumb rotated toward palm center (opposing fingers, like when pinching), 255=thumb rotated outward away from palm.\n\n"
-    "IMPORTANT thumb rules for common gestures:\n"
-    "- When the thumb should be hidden/tucked (e.g. peace/V sign, fist): use LOW values for thumb_lateral (0-30) and thumb_rotation (0-20), and a LOW thumb_bend.\n"
-    "- When the thumb should be visible/extended (e.g. thumbs up, open hand): use HIGH values for thumb_lateral (200-255) and thumb_rotation (0-80), and a HIGH thumb_bend.\n"
-    "- thumb_rotation is NOT the same as thumb_bend: rotation controls the thumb's twisting angle relative to the palm, not curling.\n\n"
-    "Common gestures for reference:\n"
+    "设置 10 自由度灵巧手的关节位置。每个值为 0-255 的整数。"
+    "按顺序排列的 10 个值为：thumb_bend（拇指弯曲）, thumb_lateral（拇指侧摆）, "
+    "index_bend（食指弯曲）, middle_bend（中指弯曲）, ring_bend（无名指弯曲）, "
+    "little_bend（小指弯曲）, index_lateral（食指侧摆）, "
+    "ring_lateral（无名指侧摆）, little_lateral（小指侧摆）, thumb_rotation（拇指旋转）。\n\n"
+    "各 DOF 的数值含义：\n"
+    "- 弯曲类 DOF（thumb_bend, index/middle/ring/little_bend）: "
+    "0=完全弯曲（收拢入掌心）, 255=完全伸直（伸出）。\n"
+    "- 侧摆类 DOF（index/ring/little_lateral）: "
+    "0=手指并拢, 255=手指张开。\n"
+    "- thumb_lateral（拇指侧摆）: "
+    "0=拇指紧贴掌心/手指, 255=拇指大幅张开远离掌心。\n"
+    "- thumb_rotation（拇指旋转）: "
+    "0=拇指向掌心方向旋转（与手指对握，如捏合时）, 255=拇指向外旋转远离掌心。\n\n"
+    "常见手势的拇指规则：\n"
+    "- 拇指需要隐藏/内收时（如剪刀手/V字、握拳）: "
+    "thumb_lateral 用低值（0-30）, thumb_rotation 用低值（0-20）, thumb_bend 也用低值。\n"
+    "- 拇指需要外露/伸直时（如点赞、张开手掌）: "
+    "thumb_lateral 用高值（200-255）, thumb_rotation 用低-中值（0-80）, thumb_bend 用高值。\n"
+    "- thumb_rotation 和 thumb_bend 不是同一个东西：rotation 控制拇指相对手掌的扭转角度，不是弯曲。\n\n"
+    "常见手势参考：\n"
 )
 
 _SET_DOF_POSTAMBLE = (
-    "\nYou can combine these presets with modifications. For example, to make a "
-    "rocker/horns sign, extend index and little fingers while bending "
-    "the rest. Be creative and adjust individual DOF values to achieve "
-    "the requested gesture."
+    "\n你可以组合预设和自定义修改。例如要做摇滚/牛角手势，伸出食指和小指，"
+    "其余手指弯曲。发挥创意，调整各 DOF 值来实现目标手势。"
 )
 
 def _build_gesture_examples() -> str:
@@ -83,100 +88,91 @@ SET_DOF_DESCRIPTION = _SET_DOF_PREAMBLE + _build_gesture_examples() + _SET_DOF_P
 
 # ---------- queue_hand_actions 描述 ----------
 QUEUE_DESCRIPTION = (
-    "Queue a choreographed sequence of hand poses for multi-step animation. "
-    "Each step defines a target pose (10 DOF values), a transition duration, "
-    "and a hold time before the next step begins.\n\n"
-    "Use this tool when the user requests:\n"
-    "- Multi-step motions: waving, finger counting (1-5), beckoning come-here\n"
-    "- Rhythmic or repeated gestures: rock-paper-scissors, drumming fingers\n"
-    "- Expressive animations: hand dance, sign language sequences\n"
-    "- Any motion requiring more than one pose transition\n\n"
-    "For a single pose change, use set_hand_dof instead.\n\n"
-    "Each action step contains:\n"
-    "- The 10 DOF values (thumb_bend through thumb_rotation, same semantics as set_hand_dof)\n"
-    "- duration (seconds): transition time from the PREVIOUS pose to this step. "
-    "Controls movement speed. Default 0.618s if omitted.\n"
-    "- pause (seconds): how long to HOLD this pose before moving to the next step. "
-    "Default 0 (immediately proceed to next step).\n\n"
-    "Design tips for natural-looking sequences:\n"
-    "- Short durations (0.2-0.4s) for quick, snappy gestures (snapping, tapping).\n"
-    "- Longer durations (0.8-2.0s) for smooth, flowing transitions (stretching, opening).\n"
-    "- Add pauses (0.2-1.0s) between key poses so each gesture is clearly visible.\n"
-    "- For rhythmic motions (waving, beckoning), alternate between 2-3 poses with "
-    "equal duration+pause for a natural rhythm.\n"
-    "- IMPORTANT RULE for loop=true: The LAST step in the sequence MUST ALWAYS "
-    "have an explicit pause value (do NOT leave it as 0 or omit it). Match it to "
-    "the rhythm of the other steps. Without it, the loop boundary feels broken.\n"
-    "- The FIRST step transitions from the hand's current position.\n"
-    "- Use 3-8 steps for most sequences. More steps allow richer animations but "
-    "take longer to generate.\n\n"
-    "Example sequences:\n"
-    "1. Finger counting 1 to 5:\n"
-    "   Step 1: index up (index_bend=255, rest bend=0), duration=0.5, pause=0.6\n"
-    "   Step 2: +middle up, duration=0.3, pause=0.6\n"
-    "   Step 3: +ring up, duration=0.3, pause=0.6\n"
-    "   Step 4: +little up, duration=0.3, pause=0.6\n"
-    "   Step 5: open hand (all 255), duration=0.5, pause=0\n\n"
-    "2. Simple wave (2 alternating poses, loop=true):\n"
-    "   Step 1: open hand spread (all bend=255, laterals=255), duration=0.3, pause=0.15\n"
-    "   Step 2: open hand slightly closed (bends=255, laterals=80), duration=0.3, pause=0.15\n\n"
-    "3. Rock-paper-scissors:\n"
-    "   Step 1: fist (all 0), duration=0.3, pause=0.8 (anticipation)\n"
-    "   Step 2: fist bounce, duration=0.2, pause=0.3\n"
-    "   Step 3: fist bounce again, duration=0.2, pause=0.3\n"
-    "   Step 4: reveal gesture (paper=open, scissors=peace, rock=fist), duration=0.4, pause=0\n\n"
-    "4. Single finger circle (any finger traces a circle while the rest stay in full fist, loop=true).\n"
-    "   Use vector_calc to generate precise values. For the moving finger's bend and lateral:\n"
+    "编排一串手部姿态序列用于多步动画。每个步骤定义一个目标姿态（10 个 DOF 值）、"
+    "过渡时间和下一步开始前的停留时间。\n\n"
+    "当用户请求以下动作时使用此工具：\n"
+    "- 多步动作：挥手、数手指（1-5）、招手\n"
+    "- 节奏性/重复手势：石头剪刀布、弹指\n"
+    "- 表现性动画：手势舞、手语序列\n"
+    "- 任何需要超过一个姿态转换的动作\n\n"
+    "单个姿态变更请使用 set_hand_dof。\n\n"
+    "每个动作步骤包含：\n"
+    "- 10 个 DOF 值（从 thumb_bend 到 thumb_rotation，含义同 set_hand_dof）\n"
+    "- duration（秒）: 从上一个姿态过渡到此步骤目标的过渡时间，控制运动速度。省略时默认 0.618 秒。\n"
+    "- pause（秒）: 在此姿态停留多久后进入下一步。默认 0（立即进入下一步）。\n\n"
+    "自然序列设计技巧：\n"
+    "- 短时间（0.2-0.4 秒）用于快速干脆的手势（弹响、轻敲）。\n"
+    "- 较长时间（0.8-2.0 秒）用于流畅的过渡（伸展、张开）。\n"
+    "- 在关键姿态之间添加停顿（0.2-1.0 秒），让每个手势清晰可见。\n"
+    "- 节奏性动作（挥手、招手），在 2-3 个姿态间交替，使用相等的 duration+pause 产生自然节奏。\n"
+    "- loop=true 的 IMPORTANT 规则：序列中的最后一步必须始终有明确的 pause 值"
+    "（不要留 0 或省略）。与其他步骤的节奏匹配。没有它，循环边界会感觉断裂。\n"
+    "- 第一步从手部的当前位置开始过渡。\n"
+    "- 大多数序列使用 3-8 步。更多步数允许更丰富的动画但生成时间更长。\n\n"
+    "示例序列：\n"
+    "1. 数手指 1 到 5：\n"
+    "   第 1 步: 食指竖起（index_bend=255，其余弯曲=0）, duration=0.5, pause=0.6\n"
+    "   第 2 步: +中指竖起, duration=0.3, pause=0.6\n"
+    "   第 3 步: +无名指竖起, duration=0.3, pause=0.6\n"
+    "   第 4 步: +小指竖起, duration=0.3, pause=0.6\n"
+    "   第 5 步: 张开手掌（全部 255）, duration=0.5, pause=0\n\n"
+    "2. 简单挥手（2 个交替姿态，loop=true）：\n"
+    "   第 1 步: 张开手（全部弯曲=255，侧摆=255）, duration=0.3, pause=0.15\n"
+    "   第 2 步: 手稍微合拢（弯曲=255，侧摆=80）, duration=0.3, pause=0.15\n\n"
+    "3. 石头剪刀布：\n"
+    "   第 1 步: 握拳（全部 0）, duration=0.3, pause=0.8（蓄力）\n"
+    "   第 2 步: 握拳弹跳, duration=0.2, pause=0.3\n"
+    "   第 3 步: 再次握拳弹跳, duration=0.2, pause=0.3\n"
+    "   第 4 步: 出招（布=张开, 剪刀=剪刀手, 石头=握拳）, duration=0.4, pause=0\n\n"
+    "4. 单指画圈（任意手指画圈，其余握拳，loop=true）。\n"
+    "   使用 vector_calc 生成精确值。对于运动手指的弯曲和侧摆：\n"
     "     expression='round(center + amplitude * cos(2*pi*x/N))', vector=[0,1,...,N-1]\n"
     "     expression='round(center + amplitude * sin(2*pi*x/N))', vector=[0,1,...,N-1]\n"
-    "   Where center=(min+max)/2, amplitude=(max-min)/2. N=8-16 steps for smoothness.\n"
-    "   Example: ring finger circle, bend center=227 amp=28, lateral center=128 amp=127, N=8:\n"
+    "   其中 center=(min+max)/2, amplitude=(max-min)/2。N=8-16 步以获得平滑效果。\n"
+    "   示例: 无名指画圈，弯曲 center=227 amp=28, 侧摆 center=128 amp=127, N=8:\n"
     "     bend values = vector_calc('round(227+28*cos(2*pi*x/8))', [0,1,2,3,4,5,6,7])\n"
     "     lateral values = vector_calc('round(128+127*sin(2*pi*x/8))', [0,1,2,3,4,5,6,7])\n"
-    "     All other DOFs = 0 (full fist including thumb). Each step: duration=0.15, pause=0. "
-    "The LAST step must also have pause=0.1 so the loop wraps smoothly.\n"
-    "     This technique works for any finger: use its (bend, lateral) pair as the two axes.\n"
+    "     所有其他 DOF = 0（完全握拳包括拇指）。每步: duration=0.15, pause=0。"
+    "最后一步也必须 pause=0.1 使循环平滑过渡。\n"
+    "     此技巧适用于任意手指：使用其 (弯曲, 侧摆) 对作为两个轴。\n"
 )
 
 # 队列步骤中 duration / pause 的参数描述
 _STEP_DURATION_DESC = (
-    "Transition time in seconds from the previous pose to this step's target pose. "
-    "Controls movement speed. Default 0.618s if omitted. "
-    "Use 0.2-0.5s for quick motions, 0.8-2.0s for slow smooth motions."
+    "从上一个姿态过渡到此步骤目标的过渡时间（秒）。控制运动速度。"
+    "省略时默认 0.618 秒。快速动作用 0.2-0.5 秒，慢速流畅动作用 0.8-2.0 秒。"
 )
 _STEP_PAUSE_DESC = (
-    "Hold time in seconds at this pose before proceeding to the next step. "
-    "Default 0 (no pause). Use 0.1-1.0s to let a pose be clearly visible "
-    "before transitioning."
+    "在此姿态停留的时间（秒），然后进入下一步。"
+    "默认 0（不停留）。使用 0.1-1.0 秒让姿态清晰可见后再转换。"
 )
 
 # ---------- vector_calc 描述 ----------
 VECTOR_CALC_DESCRIPTION = (
-    "Evaluate a math expression over a vector of input values. "
-    "Given an expression string using variable 'x' and a list of numbers, "
-    "returns a list of computed results (one per input value).\n\n"
-    "Available functions and constants:\n"
-    "- Trigonometric: sin(x), cos(x), tan(x) — angles in radians\n"
-    "- Constants: pi (=3.14159...), e (=2.71828...)\n"
-    "- Arithmetic: + - * / ** (power) % (modulo)\n"
-    "- Other: sqrt(x), abs(x), round(x), int(x), min(a,b), max(a,b), pow(a,b)\n\n"
-    "Use this tool to generate precise DOF value sequences mathematically, "
-    "instead of computing them manually.\n\n"
-    "Examples:\n"
-    "- Generate 8 ring_bend values for a circle (center=227, amplitude=28):\n"
+    "对一组输入值列表逐个计算数学表达式。给定使用变量 'x' 的表达式字符串和数字列表，"
+    "返回计算结果列表（每个输入值对应一个结果）。\n\n"
+    "可用的函数和常量：\n"
+    "- 三角函数: sin(x), cos(x), tan(x) — 角度为弧度\n"
+    "- 常量: pi (=3.14159...), e (=2.71828...)\n"
+    "- 算术: + - * / ** (幂) % (取模)\n"
+    "- 其他: sqrt(x), abs(x), round(x), int(x), min(a,b), max(a,b), pow(a,b)\n\n"
+    "使用此工具可以数学方式生成精确的 DOF 值序列，"
+    "而无需手动计算。\n\n"
+    "示例：\n"
+    "- 为画圈生成 8 个无名指弯曲值（center=227, amplitude=28）：\n"
     "  expression='round(227 + 28 * cos(2 * pi * x / 8))', vector=[0,1,2,3,4,5,6,7]\n"
     "  → [255, 247, 227, 207, 199, 207, 227, 247]\n\n"
-    "- Generate 8 ring_lateral values for a circle (center=128, amplitude=127):\n"
+    "- 为画圈生成 8 个无名指侧摆值（center=128, amplitude=127）：\n"
     "  expression='round(128 + 127 * sin(2 * pi * x / 8))', vector=[0,1,2,3,4,5,6,7]\n"
     "  → [128, 218, 255, 218, 128, 38, 1, 38]\n\n"
-    "- Linear ramp from 0 to 255 in 10 steps:\n"
+    "- 10 步线性递增从 0 到 255：\n"
     "  expression='round(255 * x / 9)', vector=[0,1,2,3,4,5,6,7,8,9]\n"
     "  → [0, 28, 57, 85, 113, 142, 170, 198, 227, 255]\n\n"
-    "- Ease-in-out curve for smooth open→close in 6 steps:\n"
+    "- 6 步缓入缓出曲线，平滑张开→合拢：\n"
     "  expression='round(255 * (1 - (x/5)**2))', vector=[0,1,2,3,4,5]\n"
     "  → [255, 245, 214, 163, 92, 0]\n\n"
-    "Results are returned as a JSON array of numbers. "
-    "Use round() or int() to get clean integer DOF values."
+    "结果以 JSON 数字数组形式返回。"
+    "使用 round() 或 int() 获取整数 DOF 值。"
 )
 
 # 向量计算的安全命名空间
@@ -231,16 +227,16 @@ SYSTEM_PROMPT_TEMPLATE = (
 
 # ---------- Per-parameter definitions ----------
 _DOF_PROPERTIES = {
-    "thumb_bend":     "Thumb bend: 0=fully bent (curled into palm), 255=fully straight (extended)",
-    "thumb_lateral":  "Thumb lateral spread: 0=thumb tucked tightly against palm/fingers, 255=thumb spread wide away from palm",
-    "index_bend":     "Index finger bend: 0=fully bent, 255=fully straight",
-    "middle_bend":    "Middle finger bend: 0=fully bent, 255=fully straight",
-    "ring_bend":      "Ring finger bend: 0=fully bent, 255=fully straight",
-    "little_bend":    "Little finger bend: 0=fully bent, 255=fully straight",
-    "index_lateral":  "Index finger lateral: 0=fingers touching, 255=fingers spread apart",
-    "ring_lateral":   "Ring finger lateral: 0=fingers touching, 255=fingers spread apart",
-    "little_lateral": "Little finger lateral: 0=fingers touching, 255=fingers spread apart",
-    "thumb_rotation": "Thumb rotation: 0=rotated toward palm center (opposing fingers), 255=rotated outward away from palm",
+    "thumb_bend":     "拇指弯曲: 0=完全弯曲（收拢入掌心）, 255=完全伸直（伸出）",
+    "thumb_lateral":  "拇指侧摆: 0=拇指紧贴掌心/手指, 255=拇指大幅张开远离掌心",
+    "index_bend":     "食指弯曲: 0=完全弯曲, 255=完全伸直",
+    "middle_bend":    "中指弯曲: 0=完全弯曲, 255=完全伸直",
+    "ring_bend":      "无名指弯曲: 0=完全弯曲, 255=完全伸直",
+    "little_bend":    "小指弯曲: 0=完全弯曲, 255=完全伸直",
+    "index_lateral":  "食指侧摆: 0=手指并拢, 255=手指张开",
+    "ring_lateral":   "无名指侧摆: 0=手指并拢, 255=手指张开",
+    "little_lateral": "小指侧摆: 0=手指并拢, 255=手指张开",
+    "thumb_rotation": "拇指旋转: 0=拇指向掌心方向旋转（与手指对握）, 255=拇指向外旋转远离掌心",
 }
 
 # ---------- OpenAI tools ----------
@@ -476,15 +472,15 @@ def _describe_diff(name: str, a: int, b: int) -> str:
     if d == 0:
         return ""
     if name == "thumb_lateral":
-        direction = "more outward" if d > 0 else "more inward"
+        direction = "更向外" if d > 0 else "更向内"
     elif name == "index_lateral":
-        direction = "more spread" if d > 0 else "more closed"
+        direction = "更张开" if d > 0 else "更并拢"
     elif name in ("ring_lateral", "little_lateral"):
-        direction = "more spread" if d > 0 else "more closed"
+        direction = "更张开" if d > 0 else "更并拢"
     elif "bend" in name:
-        direction = "straighter" if d > 0 else "more bent"
+        direction = "更直" if d > 0 else "更弯"
     elif "rotation" in name:
-        direction = "external rotation" if d > 0 else "internal rotation"
+        direction = "外旋" if d > 0 else "内旋"
     else:
         direction = "+" if d > 0 else "-"
     return f"({abs(d)} {direction})"
@@ -507,9 +503,9 @@ def build_user_context(
 
     # 根据是否有 LLM 发布历史，决定表头是三列还是两列
     if has_published:
-        lines.append(f"{'DOF':<16} {'LLM Pub':>7} {'Target':>7} {'Actual':>7}  Status")
+        lines.append(f"{'DOF':<16} {'LLM发布':>7} {'目标值':>7} {'实际值':>7}  状态")
     else:
-        lines.append(f"{'DOF':<16} {'Target':>7} {'Actual':>7}  Status")
+        lines.append(f"{'DOF':<16} {'目标值':>7} {'实际值':>7}  状态")
     lines.append("-" * 60)
 
     any_target_drift = False   # 标记：目标值是否被外部修改
@@ -528,34 +524,34 @@ def build_user_context(
                 # 第一列 != 第二列 → 目标值被外部修改（控制面板/其他节点）
                 any_target_drift = True
                 diff = _describe_diff(name, lp, tgt)
-                tags.append(f"target changed {diff}")
+                tags.append(f"目标已变更{diff}")
             if tgt != cur:
                 # 第二列 != 第三列 → 硬件阻塞或仍在收敛中
                 any_not_reached = True
                 diff = _describe_diff(name, tgt, cur)
-                tags.append(f"not reached {diff}")
-            tag_str = " ".join(tags) if tags else "OK"
+                tags.append(f"未到达{diff}")
+            tag_str = " ".join(tags) if tags else "正常"
             lines.append(f"{name:<16} {lp:>7} {tgt:>7} {cur:>7}  {tag_str}")
         else:
             # 两列模式（LLM 从未发过命令）：Target | Actual
             if tgt != cur:
                 any_not_reached = True
                 diff = _describe_diff(name, tgt, cur)
-                tags.append(f"not reached {diff}")
-            tag_str = " ".join(tags) if tags else "OK"
+                tags.append(f"未到达{diff}")
+            tag_str = " ".join(tags) if tags else "正常"
             lines.append(f"{name:<16} {tgt:>7} {cur:>7}  {tag_str}")
 
     # 底部汇总注释：帮助 LLM 快速理解整体状态
     lines.append("-" * 60)
     notes = []
     if not has_published:
-        notes.append("LLM has not issued any command yet")
+        notes.append("LLM 尚未发出任何命令")
     if any_target_drift:
-        notes.append("Some targets modified externally (control panel / other node)")
+        notes.append("部分目标值被外部修改（控制面板/其他节点）")
     if any_not_reached:
-        notes.append("Some DOFs have not reached target (blocked or converging)")
+        notes.append("部分 DOF 未到达目标值（阻塞或收敛中）")
     if not notes:
-        notes.append("All consistent, hand state normal")
+        notes.append("全部一致，手部状态正常")
     lines.append(" | ".join(notes))
     lines.append("")
     return "\n".join(lines)

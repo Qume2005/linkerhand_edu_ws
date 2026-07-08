@@ -38,6 +38,11 @@ _DEFAULTS = {
     },
 }
 
+_PROVIDER_LABELS = {
+    "OpenAI": "OpenAI",
+    "Anthropic": "Anthropic",
+}
+
 
 def _load_json() -> dict:
     if os.path.isfile(_SETTINGS_PATH):
@@ -56,7 +61,7 @@ class SettingsDialog(QDialog):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("LLM Settings")
+        self.setWindowTitle("LLM 设置")
         self.setMinimumWidth(450)
         self._build_ui()
         self._load_settings()
@@ -69,24 +74,24 @@ class SettingsDialog(QDialog):
         self.provider_combo = QComboBox()
         self.provider_combo.addItems(["OpenAI", "Anthropic"])
         self.provider_combo.currentTextChanged.connect(self._on_provider_changed)
-        form.addRow("Provider:", self.provider_combo)
+        form.addRow("提供商:", self.provider_combo)
 
         self.api_key_edit = QLineEdit()
         self.api_key_edit.setEchoMode(QLineEdit.Password)
-        self.api_key_edit.setPlaceholderText("Enter API Key...")
-        form.addRow("API Key:", self.api_key_edit)
+        self.api_key_edit.setPlaceholderText("请输入 API Key...")
+        form.addRow("API 密钥:", self.api_key_edit)
 
         self.base_url_edit = QLineEdit()
         self.base_url_edit.setPlaceholderText("https://...")
-        form.addRow("Base URL:", self.base_url_edit)
+        form.addRow("接口地址:", self.base_url_edit)
 
         self.model_edit = QLineEdit()
-        self.model_edit.setPlaceholderText("Model name")
-        form.addRow("Model:", self.model_edit)
+        self.model_edit.setPlaceholderText("模型名称")
+        form.addRow("模型名称:", self.model_edit)
 
         layout.addLayout(form)
 
-        hint = QLabel("Switching provider auto-fills default Base URL and Model.")
+        hint = QLabel("切换提供商时自动填充默认接口地址和模型名称。")
         hint.setStyleSheet("color: #888; font-size: 11px;")
         hint.setWordWrap(True)
         layout.addWidget(hint)

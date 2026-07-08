@@ -330,7 +330,7 @@ def draw_tracking(img, landmarks, handedness, targets, curls):
         (5, 9), (9, 13), (13, 17),
     ]
     colors = [(255, 0, 0), (0, 255, 255), (0, 255, 0), (255, 255, 0), (255, 0, 255)]
-    names = ['Thumb', 'Index', 'Middle', 'Ring', 'Little']
+    names = ['拇指', '食指', '中指', '无名指', '小指']
 
     for s, e in connections:
         p1 = (int(landmarks[s][0] * w), int(landmarks[s][1] * h))
@@ -348,15 +348,14 @@ def draw_tracking(img, landmarks, handedness, targets, curls):
     cv2.circle(img, (int(palm[0] * w), int(palm[1] * h)), 10, (0, 255, 255), 2)
 
     # 标签
-    label = f"{handedness} hand -> L10 Right"
-    cv2.putText(img, label, (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
+    label = f"右手 → L10 映射"
+    _draw_cn_text(img, label, 10, 25, font_size=16, color=(255, 255, 0))
 
     # 控制点信息 + 弯曲比
     if targets:
         for i, (name, t, c, cr) in enumerate(zip(names, targets, colors, curls)):
             text = f"CP{i} {name}: curl={cr:.2f} [{t[0]:.3f}, {t[1]:.3f}, {t[2]:.3f}]"
-            cv2.putText(img, text, (10, 55 + i * 20),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, c, 1)
+            _draw_cn_text(img, text, 10, 55 + i * 20, font_size=14, color=c)
 
 
 # ---------------------------------------------------------------------------
@@ -403,6 +402,25 @@ def _draw_centered_cn_text(img, text, font_size=40, color=(0, 255, 255)):
     cv2.putText(img, "Waiting for camera...", (w // 2 - 140, h // 2),
                 cv2.FONT_HERSHEY_SIMPLEX, 1.0, color, 2, cv2.LINE_AA)
     return img
+
+
+def _draw_cn_text(img, text, x, y, font_size=20, color=(255, 255, 255)):
+    """在图像指定坐标绘制中文（PIL + CJK 字体），直接修改 img。
+
+    字体不可用时跳过（不绘制）。
+    """
+    path = _resolve_cn_font_path()
+    if not path:
+        return
+    from PIL import Image, ImageDraw, ImageFont
+    font = _cn_font_cache.get(font_size)
+    if font is None:
+        font = ImageFont.truetype(path, font_size)
+        _cn_font_cache[font_size] = font
+    pil_img = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+    draw = ImageDraw.Draw(pil_img)
+    draw.text((x, y), text, font=font, fill=(color[2], color[1], color[0]))
+    img[:] = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
 
 
 # ---------------------------------------------------------------------------
@@ -572,7 +590,7 @@ class HandTrackingNode(Node):
         """
         img = np.zeros((480, 640, 3), dtype=np.uint8)
         img = _draw_centered_cn_text(img, "等待摄像头...", font_size=42)
-        cv2.imshow('L10 Hand Tracking', img)
+        cv2.imshow('L10 手势跟踪', img)
         cv2.waitKey(1)  # 驱动事件循环，避免等待态下窗口无响应
 
     def _tick(self):
@@ -651,11 +669,10 @@ class HandTrackingNode(Node):
 
         # ---- 无手部检测时显示提示 ----
         if result is None:
-            cv2.putText(frame, "No hand detected", (10, 30),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+            _draw_cn_text(frame, "未检测到手部", 10, 30, font_size=22, color=(0, 0, 255))
             if self._cal_mode:
                 self._draw_cal_overlay(frame)
-            cv2.imshow('L10 Hand Tracking', frame)
+            cv2.imshow('L10 手势跟踪', frame)
             return
 
         # ---- 关键点提取与镜像 ----
@@ -742,7 +759,7 @@ class HandTrackingNode(Node):
         draw_tracking(frame, result["landmarks"], handedness, self._smooth_cp, curls)
         if self._cal_mode:
             self._draw_cal_overlay(frame, landmarks)
-        cv2.imshow('L10 Hand Tracking', frame)
+        cv2.imshow('L10 手势跟踪', frame)
 
     def _draw_cal_overlay(self, img, landmarks=None):
         """校准模式 UI 叠加"""
@@ -750,16 +767,13 @@ class HandTrackingNode(Node):
 
         # 横幅
         cv2.rectangle(img, (0, 0), (w, 50), (0, 0, 180), -1)
-        cv2.putText(img, "CALIBRATION MODE", (10, 35),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
+        _draw_cn_text(img, "校准模式", 10, 35, font_size=22, color=(255, 255, 255))
 
         # 操作提示
         y = 65
-        cv2.putText(img, "C=finish&save  SPACE=sample", (10, y),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
+        _draw_cn_text(img, "C=完成保存  SPACE=采样", 10, y, font_size=14, color=(200, 200, 200))
         y += 20
-        cv2.putText(img, f"Samples: {len(self._cal_samples)}", (10, y),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
+        _draw_cn_text(img, f"采样数: {len(self._cal_samples)}", 10, y, font_size=14, color=(200, 200, 200))
         y += 20
 
         # gateway DOF + 当前 CP delta
@@ -768,18 +782,16 @@ class HandTrackingNode(Node):
             raw_cp = landmarks_to_control_points(landmarks, None, 640, 480)
             correct_cp = _fk_control_points(gw_dof)
             curl_str = ', '.join(f'{v:.2f}' for v in compute_finger_curls(landmarks))
-            cv2.putText(img, f"curl: [{curl_str}]", (10, y),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.35, (180, 180, 180), 1)
+            _draw_cn_text(img, f"curl: [{curl_str}]", 10, y, font_size=12, color=(180, 180, 180))
             y += 16
-            for fi, name in enumerate(['Thb', 'Idx', 'Mid', 'Rng', 'Lit']):
+            for fi, name in enumerate(['拇', '食', '中', '无名', '小']):
                 d = correct_cp[fi] - raw_cp[fi]
-                cv2.putText(img, f"{name} dY={d[1]:+.4f} dZ={d[2]:+.4f}", (10, y),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.3, (0, 200, 200), 1)
+                _draw_cn_text(img, f"{name} dY={d[1]:+.4f} dZ={d[2]:+.4f}", 10, y,
+                              font_size=11, color=(0, 200, 200))
                 y += 14
         elif landmarks:
             curl_str = ', '.join(f'{v:.2f}' for v in compute_finger_curls(landmarks))
-            cv2.putText(img, f"curl: [{curl_str}]", (10, y),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.35, (180, 180, 180), 1)
+            _draw_cn_text(img, f"curl: [{curl_str}]", 10, y, font_size=12, color=(180, 180, 180))
 
     def _detect_full(self, rgb):
         if USE_TASK_API:

@@ -143,7 +143,7 @@ class ChatWindow(QWidget):
         self._display_msgs: List[dict] = []
         self._streaming_text = ""
 
-        self.setWindowTitle("L10 Hand - LLM Control")
+        self.setWindowTitle("L10 灵巧手 - LLM 控制")
         self.setFixedSize(800, 600)
         self._apply_stylesheet()
         self._build_ui()
