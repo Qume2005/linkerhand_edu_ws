@@ -1,0 +1,5 @@
+# ISO 构建中间产物（不进入 git）
+out/
+
+# 缓存（apt .deb / pip wheel / 模型），首次构建后自动填充
+cache/
