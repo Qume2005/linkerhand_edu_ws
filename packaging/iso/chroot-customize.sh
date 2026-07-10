@@ -155,6 +155,55 @@ pip3 install --no-cache-dir --break-system-packages \
     mediapipe==0.10.32 \
     opencv-contrib-python==4.11.0.86
 
+#--- A12. 离线安装 VSCode + Firefox-------------------------------------------
+log "A12: pre-install VSCode + Firefox from offline packages"
+
+# A12a. VSCode (.deb)
+if [[ -f "/_payload/vscode.deb" ]]; then
+    log "A12a: installing VSCode .deb"
+    export DEBIAN_FRONTEND=noninteractive
+    dpkg -i /_payload/vscode.deb \
+        || apt-get install -f -y --no-install-recommends
+    unset DEBIAN_FRONTEND
+    rm -f /_payload/vscode.deb
+else
+    echo "[chroot-customize] WARN: /_payload/vscode.deb 不存在，跳过 VSCode。" >&2
+fi
+
+# A12b. Firefox (tarball → /opt/firefox)
+if [[ -f "/_payload/firefox.tar.xz" ]]; then
+    log "A12b: installing Firefox tarball → /opt/firefox"
+    mkdir -p /opt
+    tar xf /_payload/firefox.tar.xz -C /opt/ \
+        || echo "[chroot-customize] WARN: Firefox 解压失败。" >&2
+    rm -f /_payload/firefox.tar.xz
+
+    # 校验提取结果（tarball 解压后通常有 firefox/ 子目录）
+    if [[ -d "/opt/firefox" ]]; then
+        # desktop entry（确保出现在 GNOME 应用菜单）
+        cat > /usr/share/applications/firefox-esr.desktop << 'FIREFOX_DESKTOP'
+[Desktop Entry]
+Name=Firefox
+Comment=Browse the World Wide Web
+GenericName=Web Browser
+Exec=/opt/firefox/firefox %u
+Icon=/opt/firefox/browser/chrome/icons/default/default128.png
+Terminal=false
+Type=Application
+Categories=Network;WebBrowser;
+FIREFOX_DESKTOP
+
+        # 命令行快捷方式
+        update-alternatives --install /usr/bin/firefox firefox /opt/firefox/firefox 60 2>/dev/null || true
+
+        log "A12b: Firefox desktop entry created, /usr/bin/firefox available"
+    else
+        echo "[chroot-customize] WARN: /opt/firefox 目录不存在，Firefox 可能未正确提取。" >&2
+    fi
+else
+    echo "[chroot-customize] WARN: /_payload/firefox.tar.xz 不存在，跳过 Firefox。" >&2
+fi
+
 #==============================================================================
 # B. 摆工作空间到 skel（演进 fastinstall 的 mv 段）
 #==============================================================================

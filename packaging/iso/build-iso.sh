@@ -188,6 +188,29 @@ inject_payload() {
     if [[ -f "$THIS_DIR/llm_settings.template.json" ]]; then
         cp "$THIS_DIR/llm_settings.template.json" "$ROOTFS/_payload/llm_settings.template.json"
     fi
+
+    # ---- 离线安装包搬运（VSCode .deb + Firefox tarball）----
+    local CACHE_DIR="$THIS_DIR/cache"
+    local VSCode_DEB
+    VSCode_DEB="$(ls "$CACHE_DIR"/code_*.deb 2>/dev/null | head -1 || true)"
+    local FIREFOX_TAR
+    FIREFOX_TAR="$(ls "$CACHE_DIR"/firefox-*.tar.xz 2>/dev/null | head -1 || true)"
+
+    if [[ -n "$VSCode_DEB" && -f "$VSCode_DEB" ]]; then
+        mkdir -p "$ROOTFS/_payload"
+        cp "$VSCode_DEB" "$ROOTFS/_payload/vscode.deb"
+        echo "      VSCode 安装包: $(basename "$VSCode_DEB") → bundled"
+    else
+        echo "      WARN: 未找到 VSCode .deb ($CACHE_DIR/code_*.deb)，跳过预装。" >&2
+    fi
+
+    if [[ -n "$FIREFOX_TAR" && -f "$FIREFOX_TAR" ]]; then
+        mkdir -p "$ROOTFS/_payload"
+        cp "$FIREFOX_TAR" "$ROOTFS/_payload/firefox.tar.xz"
+        echo "      Firefox 安装包: $(basename "$FIREFOX_TAR") → bundled"
+    else
+        echo "      WARN: 未找到 Firefox tarball ($CACHE_DIR/firefox-*.tar.xz)，跳过预装。" >&2
+    fi
 }
 
 # ===========================================================================
