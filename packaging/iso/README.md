@@ -37,13 +37,15 @@ packaging/iso/
   llm_settings.template.json   # 清理版 LLM 配置模板（空 key），进 git，镜像只放它
   README.md                    # 本文档
   out/                         # gitignored：最终 ISO 产物（linkerhand-edu-<ver>-amd64.iso）
+  cache/                       # gitignored：离线安装包（apt deb + pip wheel + mediapipe 模型）
+    customise/                 # 预装软件离线包（.deb / .tar.xz / .tar.gz），build-iso.sh 自动搬运进 chroot
   legacy/                      # 旧 Cubic 工程参考（cubic.conf、fastinstall.bash 参考）
 ```
 
 | 文件 / 目录 | 职责 |
 |---|---|
 | `build-iso.sh` | 解包原 ISO → 注入工作空间 → chroot 定制 → 重打包 squashfs → 加 `persistent` → xorriso 生成 isohybrid ISO |
-| `chroot-customize.sh` | 在 chroot 内执行：换源、装 ROS Jazzy / 系统 / pip 依赖、中文化、fcitx5、桌面启动器、预编译工作空间、清理 LLM key、CAN 免密 sudoers |
+| `chroot-customize.sh` | 在 chroot 内执行：换源、装 ROS Jazzy / 系统 / pip 依赖、中文化、fcitx5、桌面启动器、预编译工作空间、清理 LLM key、CAN 免密 sudoers、从 `cache/customise/` 预装离线软件包（.deb dpkg 安装 / tarball 解压到 /opt/ + desktop entry） |
 | `make-usb.sh` | 把 ISO `dd` 到 U 盘并追加一个标签为 `writable` 的 ext4 分区，产成品 U 盘 |
 | `test-iso.sh` | QEMU 启动 ISO，支持 BIOS / UEFI / 持久化三种模式，持久化模式内置跨重启文件存在断言 |
 | `llm_settings.template.json` | 保留 `provider/base_url/model`（stepfun 结构），`api_key` 为空；镜像里只放它 |
@@ -90,7 +92,7 @@ packaging/iso/out/linkerhand-edu-<VERSION>-amd64.iso
 1. **校验**：原 ISO 存在、工具齐全、`EUID==0`、`BUILD_DIR` ≥25G。
 2. **解包原 ISO**：`xorriso -osirrox on -indev "$ORIG_ISO" -extract / "$ISODIR"`，校验 `casper/minimal.squashfs` / `vmlinuz` / `initrd.gz` / `boot/grub/grub.cfg` / `EFI/boot/`。
 3. **unsquashfs**：解出主 rootfs。
-4. **注入工作空间**：host 上 rsync 工作空间到 `$ROOTFS/_payload/ws/`，排除 `build/ log/ .pytest_cache/ install/ __pycache__/ .git/ *.pyc llm_settings.json`（**真实 key 任何阶段都不进构建**）；拷 `chroot-customize.sh` + `llm_settings.template.json` 进 rootfs。
+4. **注入工作空间**：host 上 rsync 工作空间到 `$ROOTFS/_payload/ws/`，排除 `build/ log/ .pytest_cache/ install/ __pycache__/ .git/ *.pyc llm_settings.json`（**真实 key 任何阶段都不进构建**）；拷 `chroot-customize.sh` + `llm_settings.template.json` 进 rootfs；将 `cache/customise/` 下的 .deb / tarball 安装包搬运到 `$ROOTFS/_payload/` 供 chroot 安装。
 5. **chroot 定制**：bind-mount `/dev /dev/pts /proc /sys`、`tmpfs /run`、拷 `/etc/resolv.conf`；`chroot "$ROOTFS" /usr/sbin/chroot-customize`；退 `apt-get clean`。
 6. **重打包 squashfs**：`mksquashfs ... -comp xz -b 1048576 -Xdict-size 100% -noappend`，排除 apt 缓存 / tmp / root cache。
 7. **更新元数据**：`filesystem.size`、`filesystem.manifest`（chroot 内 `dpkg -l`）、`.disk/info`。
