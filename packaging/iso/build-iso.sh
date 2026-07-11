@@ -189,27 +189,36 @@ inject_payload() {
         cp "$THIS_DIR/llm_settings.template.json" "$ROOTFS/_payload/llm_settings.template.json"
     fi
 
-    # ---- 离线安装包搬运（VSCode .deb + Firefox tarball）----
-    local CACHE_DIR="$THIS_DIR/cache"
-    local VSCode_DEB
-    VSCode_DEB="$(ls "$CACHE_DIR"/code_*.deb 2>/dev/null | head -1 || true)"
-    local FIREFOX_TAR
-    FIREFOX_TAR="$(ls "$CACHE_DIR"/firefox-*.tar.xz 2>/dev/null | head -1 || true)"
+    # ---- 离线安装包搬运（VSCode .deb + Firefox tarball + Zed tarball + Sidex .deb）----
+    local CACHE_DIR="$THIS_DIR/cache/customise"
 
-    if [[ -n "$VSCode_DEB" && -f "$VSCode_DEB" ]]; then
-        mkdir -p "$ROOTFS/_payload"
-        cp "$VSCode_DEB" "$ROOTFS/_payload/vscode.deb"
-        echo "      VSCode 安装包: $(basename "$VSCode_DEB") → bundled"
-    else
-        echo "      WARN: 未找到 VSCode .deb ($CACHE_DIR/code_*.deb)，跳过预装。" >&2
-    fi
+    local -a DEBS=()
+    local -a TARS=()
 
-    if [[ -n "$FIREFOX_TAR" && -f "$FIREFOX_TAR" ]]; then
-        mkdir -p "$ROOTFS/_payload"
-        cp "$FIREFOX_TAR" "$ROOTFS/_payload/firefox.tar.xz"
-        echo "      Firefox 安装包: $(basename "$FIREFOX_TAR") → bundled"
-    else
-        echo "      WARN: 未找到 Firefox tarball ($CACHE_DIR/firefox-*.tar.xz)，跳过预装。" >&2
+    # 通配符收集 .deb 和 tarball
+    while IFS= read -r f; do [[ -n "$f" ]] && DEBS+=("$f"); done < <(ls "$CACHE_DIR"/*.deb 2>/dev/null || true)
+    while IFS= read -r f; do [[ -n "$f" ]] && TARS+=("$f"); done < <(ls "$CACHE_DIR"/*.tar.xz "$CACHE_DIR"/*.tar.gz 2>/dev/null || true)
+
+    mkdir -p "$ROOTFS/_payload"
+
+    for deb in "${DEBS[@]}"; do
+        local name
+        name="$(basename "$deb")"
+        local dest="_payload/$(echo "$name" | sed 's/[^A-Za-z0-9._-]/_/g')"
+        cp "$deb" "$ROOTFS/$dest"
+        echo "      .deb: $name → $dest"
+    done
+
+    for tar in "${TARS[@]}"; do
+        local name
+        name="$(basename "$tar")"
+        local dest="_payload/$(echo "$name" | sed 's/[^A-Za-z0-9._-]/_/g')"
+        cp "$tar" "$ROOTFS/$dest"
+        echo "      tarball: $name → $dest"
+    done
+
+    if [[ ${#DEBS[@]} -eq 0 && ${#TARS[@]} -eq 0 ]]; then
+        echo "      WARN: $CACHE_DIR 下未找到任何 .deb 或 tarball，跳过离线安装包搬运。" >&2
     fi
 }
 

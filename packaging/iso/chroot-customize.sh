@@ -155,54 +155,96 @@ pip3 install --no-cache-dir --break-system-packages \
     mediapipe==0.10.32 \
     opencv-contrib-python==4.11.0.86
 
-#--- A12. 离线安装 VSCode + Firefox-------------------------------------------
-log "A12: pre-install VSCode + Firefox from offline packages"
+#--- A12. 离线安装编辑器 + 浏览器----------------------------------------------
+# 处理 _payload/ 下所有 .deb（dpkg -i）和 tarball（解压到 /opt/ + desktop entry）。
+# 已知包有特殊处理：VSCode(.deb)、Firefox(tar.xz)；
+# 其余包走通用路径，自动适配。
+log "A12: pre-install offline packages (editors, browsers, tools)"
 
-# A12a. VSCode (.deb)
-if [[ -f "/_payload/vscode.deb" ]]; then
-    log "A12a: installing VSCode .deb"
+# A12a. 已知 .deb 包（VSCode、Sidex 等）
+for deb in /_payload/*.deb; do
+    [[ -f "$deb" ]] || continue
+    debname="$(basename "$deb")"
+    log "A12a: installing .deb: $debname"
     export DEBIAN_FRONTEND=noninteractive
-    dpkg -i /_payload/vscode.deb \
-        || apt-get install -f -y --no-install-recommends
+    dpkg -i "$deb" || apt-get install -f -y --no-install-recommends
     unset DEBIAN_FRONTEND
-    rm -f /_payload/vscode.deb
-else
-    echo "[chroot-customize] WARN: /_payload/vscode.deb 不存在，跳过 VSCode。" >&2
-fi
+    rm -f "$deb"
+done
 
-# A12b. Firefox (tarball → /opt/firefox)
-if [[ -f "/_payload/firefox.tar.xz" ]]; then
-    log "A12b: installing Firefox tarball → /opt/firefox"
+# A12b. 已知 tarball 包（Firefox、Zed 等）
+for tar in /_payload/*.tar.xz /_payload/*.tar.gz; do
+    [[ -f "$tar" ]] || continue
+    tarname="$(basename "$tar")"
+    log "A12b: extracting tarball: $tarname"
     mkdir -p /opt
-    tar xf /_payload/firefox.tar.xz -C /opt/ \
-        || echo "[chroot-customize] WARN: Firefox 解压失败。" >&2
-    rm -f /_payload/firefox.tar.xz
+    tar xf "$tar" -C /opt/ || echo "[chroot-customize] WARN: $tarname 解压失败。" >&2
+    rm -f "$tar"
 
-    # 校验提取结果（tarball 解压后通常有 firefox/ 子目录）
-    if [[ -d "/opt/firefox" ]]; then
-        # desktop entry（确保出现在 GNOME 应用菜单）
-        cat > /usr/share/applications/firefox-esr.desktop << 'FIREFOX_DESKTOP'
+    # 检测解压后的目录名（去掉扩展名）
+    dirname="$(basename "$tarname" | sed 's/\.tar\.xz$//;s/\.tar\.gz$//')"
+    # 有些 tarball 解压后有子目录（如 firefox/），有些直接散文件
+    extract_dir="/opt/${dirname}"
+    if [[ ! -d "$extract_dir" ]]; then
+        # 尝试常见的子目录名
+        for candidate in /opt/firefox /opt/zed /opt/zed-editor; do
+            if [[ -d "$candidate" ]]; then
+                extract_dir="$candidate"
+                break
+            fi
+        done
+    fi
+
+    if [[ -d "$extract_dir" ]]; then
+        # 查找可执行二进制（优先常见名）
+        bin_path=""
+        for candidate in \
+            "$extract_dir/firefox" \
+            "$extract_dir/zed" \
+            "$extract_dir/zed-editor" \
+            "$extract_dir/sidex" \
+            "$extract_dir/sidex-cli"; do
+            if [[ -x "$candidate" ]]; then
+                bin_path="$candidate"
+                break
+            fi
+        done
+        # 回退：递归找第一个可执行文件
+        if [[ -z "$bin_path" ]]; then
+            bin_path="$(find "$extract_dir" -maxdepth 3 -type f -executable | head -1 || true)"
+        fi
+
+        bin_name="$(basename "$bin_path")"
+        desktop_name="$(echo "$dirname" | tr '[:lower:]' '[:upper:]' | sed 's/-/_/g')"
+
+        # desktop entry
+        icon_path=""
+        for ic in \
+            "$extract_dir/browser/chrome/icons/default/default128.png" \
+            "$extract_dir/icons/icon.png" \
+            "$extract_dir/resources/app/icon.png"; do
+            [[ -f "$ic" ]] && icon_path="$ic" && break
+        done
+
+        cat > "/usr/share/applications/${bin_name}.desktop" << DESKTOP_EOF
 [Desktop Entry]
-Name=Firefox
-Comment=Browse the World Wide Web
-GenericName=Web Browser
-Exec=/opt/firefox/firefox %u
-Icon=/opt/firefox/browser/chrome/icons/default/default128.png
+Name=${desktop_name}
+Exec=${bin_path} %u
+Icon=${icon_path:-/usr/share/icons/hicolor/48x48/apps/utilities-terminal.png}
 Terminal=false
 Type=Application
-Categories=Network;WebBrowser;
-FIREFOX_DESKTOP
+Categories=Utility;Application;
+DESKTOP_EOF
 
         # 命令行快捷方式
-        update-alternatives --install /usr/bin/firefox firefox /opt/firefox/firefox 60 2>/dev/null || true
-
-        log "A12b: Firefox desktop entry created, /usr/bin/firefox available"
+        if [[ -n "$bin_path" ]]; then
+            update-alternatives --install "/usr/bin/$bin_name" "$bin_name" "$bin_path" 60 2>/dev/null || true
+            log "A12b: $tarname → $extract_dir, desktop entry + /usr/bin/$bin_name"
+        fi
     else
-        echo "[chroot-customize] WARN: /opt/firefox 目录不存在，Firefox 可能未正确提取。" >&2
+        echo "[chroot-customize] WARN: $tarname 解压后未找到目录，跳过 desktop entry。" >&2
     fi
-else
-    echo "[chroot-customize] WARN: /_payload/firefox.tar.xz 不存在，跳过 Firefox。" >&2
-fi
+done
 
 #==============================================================================
 # B. 摆工作空间到 skel（演进 fastinstall 的 mv 段）
