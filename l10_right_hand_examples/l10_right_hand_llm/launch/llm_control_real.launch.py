@@ -23,11 +23,14 @@ def generate_launch_description():
             get_package_share_directory('l10_right_hand_bootstrap'),
             'launch', 'real.launch.py',
         )),
+        # Jazzy 的 IncludeLaunchDescription 要求 launch_arguments 是 (name, value)
+        # 元组的可迭代对象；裸 dict 迭代得到的是 key 字符串，会触发
+        # "too many values to unpack (expected 2)"。用 .items() 提供 元组。
         launch_arguments={
             'can_port': LaunchConfiguration('can_port'),
             'is_touch': LaunchConfiguration('is_touch'),
             'topic_hz': LaunchConfiguration('topic_hz'),
-        },
+        }.items(),
     )
 
     return LaunchDescription([

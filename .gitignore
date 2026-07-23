@@ -33,3 +33,6 @@ references/
 
 # packaging iso output
 packaging/iso/out/
+
+# oh-my-claude
+.omc/
