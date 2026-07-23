@@ -153,7 +153,8 @@ pip3 install --no-cache-dir --break-system-packages \
     numpy==1.26.4 \
     mujoco==3.4.0 \
     mediapipe==0.10.32 \
-    opencv-contrib-python==4.11.0.86
+    opencv-contrib-python==4.11.0.86 \
+    python-can
 
 #--- A12. 离线安装编辑器 + 浏览器----------------------------------------------
 # 处理 _payload/ 下所有 .deb（dpkg -i）和 tarball（解压到 /opt/ + desktop entry）。

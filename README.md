@@ -92,7 +92,7 @@ sudo apt install -y python3-pip python3-colcon-common-extensions
 # 核心依赖（仿真/控制必需）
 pip3 install --break-system-packages \
   mujoco==3.4.0 \
-  numpy \
+  numpy==1.26.4 \
   python-can
 
 # 可选：LLM 自然语言控制
