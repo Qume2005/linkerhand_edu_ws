@@ -1,6 +1,6 @@
 {
   "provider": "OpenAI",
   "api_key": "",
-  "base_url": "https://api.stepfun.com/v1",
-  "model": "step-3.5-flash-2603"
+  "base_url": "https://open.bigmodel.cn/api/paas/v4",
+  "model": "GLM-4.7-Flash"
 }

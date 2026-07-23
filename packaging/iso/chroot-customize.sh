@@ -65,14 +65,14 @@ sed -i 's|http://security.ubuntu.com|https://mirrors.aliyun.com|g' /etc/apt/sour
 
 #--- A3. 删冗余软件 + autoremove----------------------------------------------
 log "A3: remove unnecessary packages"
-apt-get update
-apt-get remove -y libreoffice-common snapd rhythmbox shotwell remmina
-apt-get autoremove -y
+apt update
+apt remove -y libreoffice-common snapd rhythmbox shotwell remmina
+apt autoremove -y
 
 #--- A4. 时区 / locale / user-dirs--------------------------------------------
 log "A4: timezone + locale + user-dirs"
 ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
-apt-get install -y locales curl
+apt install -y locales curl gnupg2
 locale-gen zh_CN zh_CN.UTF-8
 update-locale LC_ALL=zh_CN.UTF-8 LANG=zh_CN.UTF-8
 export LANG=zh_CN.UTF-8
@@ -83,31 +83,30 @@ EOF
 
 #--- A5. add-apt-repository universe------------------------------------------
 log "A5: enable universe"
-apt-get install -y software-properties-common
+apt install -y software-properties-common
 add-apt-repository universe -y
 
 #--- A6. ROS2 apt 源（ros2-apt-source deb）-----------------------------------
 log "A6: ROS2 apt source"
-export ROS_APT_SOURCE_VERSION="$(curl -s https://api.github.com/repos/ros-infrastructure/ros-apt-source/releases/latest | grep -F "tag_name" | awk -F'"' '{print $4}')"
-curl -L -o /tmp/ros2-apt-source.deb "https://github.com/ros-infrastructure/ros-apt-source/releases/download/${ROS_APT_SOURCE_VERSION}/ros2-apt-source_${ROS_APT_SOURCE_VERSION}.$(. /etc/os-release && echo "${UBUNTU_CODENAME:-${VERSION_CODENAME}}")_all.deb"
-dpkg -i /tmp/ros2-apt-source.deb
+curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key | gpg --dearmor -o /usr/share/keyrings/ros-archive-keyring.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] https://mirrors.cernet.edu.cn/ros2/ubuntu noble main" | tee /etc/apt/sources.list.d/ros2.list > /dev/null
 
 #--- A7. ros-dev-tools + Suites 补 noble-updates/-backports + full-upgrade----
 log "A7: ros-dev-tools + full-upgrade"
 sed -i 's/^Suites:.*/Suites: noble noble-updates noble-backports/' /etc/apt/sources.list.d/ubuntu.sources
-apt-get clean
-apt-get update
-apt-get full-upgrade -y
-apt-get install -y ros-dev-tools
+apt clean
+apt update
+apt full-upgrade -y
+apt install -y ros-dev-tools
 
 #--- A8. ros-jazzy-ros-base + .bashrc-----------------------------------------
 log "A8: ros-jazzy-ros-base + bashrc"
-apt-get install -y ros-jazzy-ros-base
+apt install -y ros-jazzy-ros-base
 echo '. /opt/ros/jazzy/setup.sh && . ~/Desktop/install/setup.sh' >> /etc/skel/.bashrc
 
 #--- A9. 系统依赖-------------------------------------------------------------
 log "A9: system & project dependencies"
-apt-get install -y --no-install-recommends \
+apt install -y --no-install-recommends \
     python3-pip \
     libgl1 \
     libglib2.0-0 \
@@ -168,7 +167,7 @@ for deb in /_payload/*.deb; do
     debname="$(basename "$deb")"
     log "A12a: installing .deb: $debname"
     export DEBIAN_FRONTEND=noninteractive
-    dpkg -i "$deb" || apt-get install -f -y --no-install-recommends
+    dpkg -i "$deb" || apt install -f -y --no-install-recommends
     unset DEBIAN_FRONTEND
     rm -f "$deb"
 done
@@ -368,7 +367,7 @@ log "C3: sudoers 校验通过"
 # D. 收尾
 #==============================================================================
 log "D: cleanup"
-apt-get clean
+apt clean
 rm -rf /var/lib/apt/lists/* \
        /var/cache/apt/archives/*.deb \
        /_payload
